@@ -24,9 +24,11 @@ interface Match {
   roundOrder: number;
   matchOrder: number;
   team1Name: string | null;
+  team1Club: string | null;
   team1Seed: string | null;
   team1Number: number | null;
   team2Name: string | null;
+  team2Club: string | null;
   team2Seed: string | null;
   team2Number: number | null;
   scoreTeam1: string | null;
@@ -644,8 +646,10 @@ export default function AdminPage() {
                       color: styles.color,
                       fontWeight: 800
                     } : {
-                      borderColor: 'transparent',
-                      color: 'var(--text-muted)'
+                      borderColor: styles.border,
+                      color: styles.border,
+                      backgroundColor: 'rgba(30, 41, 59, 0.5)',
+                      opacity: 0.8
                     }}
                   >
                     {cat.name}
@@ -812,14 +816,19 @@ export default function AdminPage() {
                               <div
                                 className={`admin-team ${match.winner === 1 ? "winner" : ""}`}
                               >
-                                {match.team1Number !== null && (
-                                  <span className="admin-seed">
-                                    [{match.team1Number}]
+                                <div className="team-badges-area">
+                                  {match.team1Number !== null && (
+                                    <span className="admin-seed">
+                                      [{match.team1Number}]
+                                    </span>
+                                  )}
+                                </div>
+                                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                                  <span className="admin-team-name">
+                                    {match.team1Name || "TBD"}
                                   </span>
-                                )}
-                                <span className="admin-team-name">
-                                  {match.team1Name || "TBD"}
-                                </span>
+                                  {match.team1Club && <span style={{ fontSize: '0.65rem', color: 'var(--accent)', opacity: 0.8 }}>{match.team1Club}</span>}
+                                </div>
                                 {match.scoreTeam1 && (
                                   <span className="admin-score">
                                     {match.scoreTeam1}
@@ -830,14 +839,19 @@ export default function AdminPage() {
                               <div
                                 className={`admin-team ${match.winner === 2 ? "winner" : ""}`}
                               >
-                                {match.team2Number !== null && (
-                                  <span className="admin-seed">
-                                    [{match.team2Number}]
+                                <div className="team-badges-area">
+                                  {match.team2Number !== null && (
+                                    <span className="admin-seed">
+                                      [{match.team2Number}]
+                                    </span>
+                                  )}
+                                </div>
+                                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                                  <span className="admin-team-name">
+                                    {match.team2Name || "TBD"}
                                   </span>
-                                )}
-                                <span className="admin-team-name">
-                                  {match.team2Name || "TBD"}
-                                </span>
+                                  {match.team2Club && <span style={{ fontSize: '0.65rem', color: 'var(--accent)', opacity: 0.8 }}>{match.team2Club}</span>}
+                                </div>
                                 {match.scoreTeam2 && (
                                   <span className="admin-score">
                                     {match.scoreTeam2}

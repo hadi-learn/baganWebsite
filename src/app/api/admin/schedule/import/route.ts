@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { scheduleMatches, scheduleSettings, tournaments } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { scheduleMatches, scheduleSettings, tournaments, categories, matches } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 import { decrypt } from "@/lib/session";
 import { cookies } from "next/headers";
 import { parseScheduleCSV } from "@/lib/scheduleParser";
+import { parsePlayerInfo, normalizeMatchCode, normalizeCategoryName } from "@/lib/playerUtils";
 
 export async function POST() {
   try {
@@ -88,6 +89,46 @@ export async function POST() {
       .update(scheduleSettings)
       .set({ lastImportedAt: new Date(), categoryConfig: JSON.stringify(newConfig) })
       .where(eq(scheduleSettings.id, settings[0].id));
+
+    // --- SYNC CLUB INFO TO BRACKET (MATCHES TABLE) ---
+    // 1. Load all categories to map normalized name -> id
+    const allCats = await db.select().from(categories);
+    const catMap: Record<string, number> = {};
+    allCats.forEach(c => {
+      catMap[normalizeCategoryName(c.name)] = c.id;
+    });
+
+    // 2. Process each parsed match if needed (we'll use the optimized loop below for DB efficiency)
+    // We already have the optimized loop below, so we'll just ensure it uses normalizeCategoryName.
+
+    // Optimization: Bulk fetch bracket matches for categories found in schedule
+    const categoryIdsFound = Array.from(new Set(parsed.matches.map(m => catMap[normalizeCategoryName(m.category)]).filter(Boolean)));
+    for (const cId of categoryIdsFound) {
+      const bracketMatches = await db.select().from(matches).where(eq(matches.categoryId, cId as number));
+      const scheduleMatchesForCat = parsed.matches.filter(m => catMap[normalizeCategoryName(m.category)] === cId);
+
+      for (const sm of scheduleMatchesForCat) {
+        const smNorm = normalizeMatchCode(sm.gameNumber);
+        const bm = bracketMatches.find(b => normalizeMatchCode(b.matchCode) === smNorm);
+        
+        if (bm) {
+          // Check both player 1 and player 2 for club info
+          const p1_1 = parsePlayerInfo(sm.team1Player1);
+          const p1_2 = parsePlayerInfo(sm.team1Player2);
+          const club1 = p1_1.club || p1_2.club;
+
+          const p2_1 = parsePlayerInfo(sm.team2Player1);
+          const p2_2 = parsePlayerInfo(sm.team2Player2);
+          const club2 = p2_1.club || p2_2.club;
+          
+          if (club1 !== bm.team1Club || club2 !== bm.team2Club) {
+            await db.update(matches)
+              .set({ team1Club: club1, team2Club: club2 })
+              .where(eq(matches.id, bm.id));
+          }
+        }
+      }
+    }
 
     return NextResponse.json({
       success: true,

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { getCategoryStyles } from "@/lib/colors";
+import { parsePlayerInfo } from "@/lib/playerUtils";
 
 interface Match {
   id: number;
@@ -11,9 +12,11 @@ interface Match {
   roundOrder: number;
   matchOrder: number;
   team1Name: string | null;
+  team1Club: string | null;
   team1Seed: string | null;
   team1Number: number | null;
   team2Name: string | null;
+  team2Club: string | null;
   team2Seed: string | null;
   team2Number: number | null;
   scoreTeam1: string | null;
@@ -75,6 +78,7 @@ const ROUND_CLASSES: Record<string, string> = {
 
 function TeamRow({
   name,
+  club,
   seed,
   number,
   score,
@@ -83,6 +87,7 @@ function TeamRow({
   teamSlot,
 }: {
   name: string | null;
+  club: string | null;
   seed: string | null;
   number: number | null;
   score: string | null;
@@ -99,11 +104,16 @@ function TeamRow({
       className={`team-row ${isWinner ? "winner" : ""} ${isBye && teamSlot === 2 && !name ? "bye" : ""} ${isWaiting ? "waiting" : ""} ${isEmpty ? "empty" : ""} ${isSeeded ? "seeded" : ""} team-${teamSlot}`}
     >
       <div className="team-info">
-        {number !== null && <span className="seed-number">[{number}]</span>}
-        {seed && <span className="seed-badge">⭐{seed}</span>}
-        <span className="team-name">
-          {isBye && !name ? "— BYE —" : isWaiting && name ? name.replace("▶", "").trim() : name || "TBD"}
-        </span>
+        <div className="team-badges-area">
+          {number !== null && <span className="seed-number">[{number}]</span>}
+          {seed && <span className="seed-badge">⭐{seed}</span>}
+        </div>
+        <div className="team-name-group">
+          <span className="team-name">
+            {isBye && !name ? "— BYE —" : isWaiting && name ? name.replace("▶", "").trim() : name || "TBD"}
+          </span>
+          {club && !isWaiting && <span className="team-club">{club}</span>}
+        </div>
       </div>
       <div className="score-box">
         {score}
@@ -136,6 +146,7 @@ function MatchCard({ match, categoryName, roundClass, allMatches, isFirstRound, 
       <div className="match-teams">
         <TeamRow
           name={finalName1}
+          club={match.team1Club}
           seed={match.team1Seed}
           number={match.team1Number}
           score={match.scoreTeam1}
@@ -146,6 +157,7 @@ function MatchCard({ match, categoryName, roundClass, allMatches, isFirstRound, 
         <div className="team-divider"></div>
         <TeamRow
           name={finalName2}
+          club={match.team2Club}
           seed={match.team2Seed}
           number={match.team2Number}
           score={match.scoreTeam2}
@@ -158,30 +170,7 @@ function MatchCard({ match, categoryName, roundClass, allMatches, isFirstRound, 
   );
 }
 
-/* ============== Parse Player Info ============== */
-// Parses: "Name (Seed 1)" / "Name - Club (Seed 3/4)" / "Name - Club" / "Name"
-function parsePlayerInfo(raw: string | null): { name: string; seed: string | null; club: string | null } {
-  if (!raw || raw.trim() === "") return { name: "", seed: null, club: null };
-  let text = raw.trim();
-  let seed: string | null = null;
-  let club: string | null = null;
 
-  // Extract seed: "(Seed 1)" or "(Seed 3/4)" etc.
-  const seedMatch = text.match(/\(Seed\s*(\d+(?:\/\d+)?)\)/i);
-  if (seedMatch) {
-    seed = seedMatch[1];
-    text = text.replace(seedMatch[0], "").trim();
-  }
-
-  // Extract club: "Name - Club"
-  const dashIdx = text.indexOf(" - ");
-  if (dashIdx > 0) {
-    club = text.substring(dashIdx + 3).trim();
-    text = text.substring(0, dashIdx).trim();
-  }
-
-  return { name: text, seed, club };
-}
 
 /* ============== Schedule Team Row ============== */
 function SchedTeamRow({ player1Raw, player2Raw, teamNumber, isWinner, isCompleted, score }: {
@@ -508,18 +497,34 @@ export default function HomePage() {
             <>
               <div className="navigation-container">
                 {categories.length > 0 && (
-                  <nav className="category-tabs">
-                    {categories.map((cat) => (
-                      <button
-                        key={cat.id}
-                        className={`tab-btn ${activeCategory === cat.id ? "active" : ""}`}
-                        onClick={() => setActiveCategory(cat.id)}
-                      >
-                        <span className="tab-name">{cat.name}</span>
-                        <span className="tab-label">{cat.label}</span>
-                      </button>
-                    ))}
-                  </nav>
+                    <nav className="category-tabs">
+                      {categories.map((cat) => {
+                        const styles = getCategoryStyles(cat.name);
+                        const isActive = activeCategory === cat.id;
+                        return (
+                          <button
+                            key={cat.id}
+                            className={`tab-btn ${isActive ? "active" : ""}`}
+                            onClick={() => setActiveCategory(cat.id)}
+                            style={isActive ? {
+                              backgroundColor: styles.background,
+                              borderColor: styles.border,
+                              color: styles.color,
+                              fontWeight: 800,
+                              boxShadow: `0 4px 12px ${styles.background}44`
+                            } : {
+                              borderColor: styles.border,
+                              color: styles.border,
+                              backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                              opacity: 0.8
+                            }}
+                          >
+                            <span className="tab-name" style={{ color: "inherit" }}>{cat.name}</span>
+                            <span className="tab-label" style={{ color: "inherit", opacity: 0.8 }}>{cat.label}</span>
+                          </button>
+                        );
+                      })}
+                    </nav>
                 )}
 
                 {activeCat && (
@@ -617,8 +622,8 @@ export default function HomePage() {
                       className={`sched-day-btn ${activeDay === day ? "active" : ""}`}
                       onClick={() => setActiveDay(day)}
                     >
-                      <span className="sched-day-number">Hari {idx + 1}</span>
                       <span className="sched-day-label">{shortDay(day)}</span>
+                      <span className="sched-day-number">Hari {idx + 1}</span>
                     </button>
                   ))}
                 </div>
@@ -639,11 +644,13 @@ export default function HomePage() {
                           backgroundColor: styles.background, 
                           borderColor: styles.border, 
                           color: styles.color,
-                          fontWeight: 800
+                          fontWeight: 800,
+                          boxShadow: `0 4px 12px ${styles.background}44`
                         } : { 
                           borderColor: styles.border, 
-                          color: styles.color,
-                          backgroundColor: 'transparent'
+                          color: styles.border, 
+                          backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                          opacity: 0.85
                         }}
                       >
                         {getCatDisplayName(cat)}
@@ -667,7 +674,10 @@ export default function HomePage() {
                 <div className="schedule-list">
                   {schedFilterMode === "day" ? (
                     <>
-                      <h2 className="sched-day-title">📅 {activeDay}</h2>
+                      <h2 className="sched-day-title">
+                        📅 {activeDay}
+                        <span className="sched-match-count"> ({filteredSchedule.length} Pertandingan)</span>
+                      </h2>
                       <div className="sched-cards">
                         {filteredSchedule.map((m) => (
                           <ScheduleCard key={m.id} match={m} catDisplayName={getCatDisplayName(m.category)} onCardClick={handleCardClick} />
@@ -677,7 +687,10 @@ export default function HomePage() {
                   ) : (
                     Object.entries(schedGroupedByDay).map(([day, dayMatches]) => (
                       <div key={day} className="sched-day-group">
-                        <h3 className="sched-group-title">📅 {day}</h3>
+                        <h3 className="sched-group-title">
+                          📅 {day}
+                          <span className="sched-match-count"> ({dayMatches.length} Pertandingan)</span>
+                        </h3>
                         <div className="sched-cards">
                           {dayMatches.map((m) => (
                             <ScheduleCard key={m.id} match={m} catDisplayName={getCatDisplayName(m.category)} onCardClick={handleCardClick} />

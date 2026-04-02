@@ -62,6 +62,8 @@ export async function PUT(request: Request) {
       if (currentMatch && currentMatch.nextMatchCode) {
         const winnerName =
           winner === 1 ? currentMatch.team1Name : currentMatch.team2Name;
+        const winnerClub =
+          winner === 1 ? currentMatch.team1Club : currentMatch.team2Club;
         const winnerSeed =
           winner === 1 ? currentMatch.team1Seed : currentMatch.team2Seed;
         const winnerNumber =
@@ -83,10 +85,12 @@ export async function PUT(request: Request) {
           const updateData: Record<string, unknown> = {};
           if (currentMatch.nextMatchSlot === 1) {
             updateData.team1Name = winnerName;
+            updateData.team1Club = winnerClub;
             updateData.team1Seed = winnerSeed;
             updateData.team1Number = winnerNumber;
           } else {
             updateData.team2Name = winnerName;
+            updateData.team2Club = winnerClub;
             updateData.team2Seed = winnerSeed;
             updateData.team2Number = winnerNumber;
           }

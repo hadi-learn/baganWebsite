@@ -46,9 +46,11 @@ export const matches = mysqlTable("matches", {
   roundOrder: int("round_order").notNull(), // numeric order (0=R64, 1=R32, etc.)
   matchOrder: int("match_order").notNull(), // position within round (top to bottom)
   team1Name: varchar("team1_name", { length: 255 }),
+  team1Club: varchar("team1_club", { length: 255 }), // Added to store club name
   team1Seed: varchar("team1_seed", { length: 50 }), // e.g., "[U1]"
   team1Number: int("team1_number"), // seeding number e.g., 28
   team2Name: varchar("team2_name", { length: 255 }),
+  team2Club: varchar("team2_club", { length: 255 }), // Added to store club name
   team2Seed: varchar("team2_seed", { length: 50 }),
   team2Number: int("team2_number"),
   scoreTeam1: varchar("score_team1", { length: 50 }),
