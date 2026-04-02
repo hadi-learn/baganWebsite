@@ -149,9 +149,11 @@ export function parseScheduleCSV(csvText: string): ParsedSchedule {
       let winner: number | null = null;
       let status: "upcoming" | "ongoing" | "completed" = "upcoming";
       
-      if (scoreA && scoreB) {
+      if (scoreA !== null && scoreB !== null) {
         const s1 = parseInt(scoreA, 10);
         const s2 = parseInt(scoreB, 10);
+        // If it was provided, and either is > 0 OR if we explicitly want to allow 0-0 finished (rare)
+        // But let's check for "Menunggu Hasil" or empty rows
         if (!isNaN(s1) && !isNaN(s2) && (s1 > 0 || s2 > 0)) {
           status = "completed";
           if (s1 > s2) winner = 1;
@@ -177,8 +179,8 @@ export function parseScheduleCSV(csvText: string): ParsedSchedule {
         team2Player1,
         team2Player2,
         team2Number: t2Num,
-        scoreTeam1: scoreA && scoreA !== "0" ? scoreA : scoreA,
-        scoreTeam2: scoreB && scoreB !== "0" ? scoreB : scoreB,
+        scoreTeam1: scoreA || "0",
+        scoreTeam2: scoreB || "0",
         winner,
         status,
       });

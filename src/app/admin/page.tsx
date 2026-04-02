@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { getCategoryStyles } from "@/lib/colors";
 
 interface Category {
   id: number;
@@ -17,6 +18,7 @@ interface Category {
 
 interface Match {
   id: number;
+  categoryId: number;
   matchCode: string;
   round: string;
   roundOrder: number;
@@ -73,7 +75,7 @@ const ROUND_LABELS: Record<string, string> = {
 export default function AdminPage() {
   const router = useRouter();
   const [authenticated, setAuthenticated] = useState(false);
-  const [mainTab, setMainTab] = useState<"matches" | "settings" | "schedule">("matches");
+  const [mainTab, setMainTab] = useState<"matches" | "settings" | "schedule" | "gallery">("matches");
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [activeCategory, setActiveCategory] = useState<number | null>(null);
@@ -99,6 +101,17 @@ export default function AdminPage() {
   const [schedCatConfig, setSchedCatConfig] = useState<SchedCatConfig[]>([]);
   const [editingSchedMatch, setEditingSchedMatch] = useState<ScheduleMatch | null>(null);
   const [schedActiveDay, setSchedActiveDay] = useState<string>("");
+  
+  // Gallery State
+  const [galleryMatchCode, setGalleryMatchCode] = useState("");
+  const [galleryPhotos, setGalleryPhotos] = useState<any[]>([]);
+  const [galleryLoading, setGalleryLoading] = useState(false);
+  const [galleryUploading, setGalleryUploading] = useState(false);
+  const [galleryMsg, setGalleryMsg] = useState<string | null>(null);
+
+  const [gallerySummary, setGallerySummary] = useState<any[]>([]);
+  const [gallerySummaryLoading, setGallerySummaryLoading] = useState(false);
+  const [showGalleryAdd, setShowGalleryAdd] = useState(false);
 
   // Check auth
   useEffect(() => {
@@ -155,6 +168,12 @@ export default function AdminPage() {
         }
       });
   }, [authenticated]);
+
+  useEffect(() => {
+    if (authenticated && mainTab === "gallery" && !showGalleryAdd) {
+      loadGallerySummary();
+    }
+  }, [authenticated, mainTab, showGalleryAdd]);
 
   const loadMatches = useCallback((categoryId: number) => {
     setLoading(true);
@@ -388,6 +407,184 @@ export default function AdminPage() {
 
   const activeCat = categories.find((c) => c.id === activeCategory);
 
+  // --- Gallery Functions ---
+  const loadGallerySummary = async () => {
+    setGallerySummaryLoading(true);
+    try {
+      const res = await fetch("/api/admin/gallery/summary");
+      const data = await res.json();
+      if (res.ok) {
+        setGallerySummary(data.summary || []);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setGallerySummaryLoading(false);
+    }
+  };
+
+  const handleGalleryAddShortcut = (unifiedCode: string) => {
+    setGalleryMatchCode(unifiedCode);
+    setMainTab("gallery");
+    setEditingMatch(null);
+    setEditingSchedMatch(null);
+    loadGallery(unifiedCode);
+  };
+
+  const loadGallery = async (rawCode: string) => {
+    if (!rawCode) return;
+    const matchCode = rawCode.trim();
+    setGalleryMatchCode(matchCode);
+    setShowGalleryAdd(true);
+    setGalleryLoading(true);
+    setGalleryMsg(null);
+    try {
+      const res = await fetch(`/api/gallery?match=${encodeURIComponent(matchCode)}`);
+      const data = await res.json();
+      if (res.ok) {
+        setGalleryPhotos(data.photos || []);
+      } else {
+        setGalleryMsg(`❌ Gagal: ${data.error}`);
+      }
+    } catch {
+      setGalleryMsg("❌ Gagal memuat galeri");
+    } finally {
+      setGalleryLoading(false);
+    }
+  };
+
+  const handleGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    if (!galleryMatchCode) {
+      setGalleryMsg("❌ Pilih Kategori dan Nomor Pertandingan terlebih dahulu!");
+      return;
+    }
+    
+    setGalleryUploading(true);
+    const filesArray = Array.from(e.target.files);
+    const totalFiles = filesArray.length;
+    let successCount = 0;
+    const errors: string[] = [];
+    
+    try {
+      for (let i = 0; i < totalFiles; i++) {
+        setGalleryMsg(`⏳ Mengupload foto ${i + 1} dari ${totalFiles}...`);
+        const file = filesArray[i];
+        
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("matchCode", galleryMatchCode.trim());
+        
+        try {
+          const res = await fetch("/api/admin/gallery", {
+            method: "POST",
+            body: formData,
+          });
+          if (res.ok) {
+            successCount++;
+          } else {
+            const errData = await res.json();
+            errors.push(`${file.name}: ${errData.error || "Gagal"}`);
+          }
+        } catch (innerErr: any) {
+          errors.push(`${file.name}: ${innerErr.message || "Network Error"}`);
+        }
+      }
+      
+      if (successCount === totalFiles) {
+        setGalleryMsg(`✅ ${successCount} foto berhasil diupload!`);
+      } else if (successCount > 0) {
+        setGalleryMsg(`⚠️ Berhasil: ${successCount}. Gagal: ${errors.length}. Periksa koneksi.`);
+        if (errors.length > 0) console.error("Upload Errors:", errors);
+      } else {
+        setGalleryMsg(`❌ Gagal mengunggah foto. Periksa ukuran file.`);
+      }
+      loadGallery(galleryMatchCode);
+    } catch (err) {
+      setGalleryMsg("❌ Terjadi kesalahan fatal saat mengunggah.");
+    } finally {
+      setGalleryUploading(false);
+      e.target.value = '';
+    }
+  };
+  
+  const handleGalleryDelete = async (id: number) => {
+    if (!confirm("Hapus foto ini?")) return;
+    try {
+      setGalleryMsg("⏳ Menghapus foto...");
+      const res = await fetch("/api/admin/gallery", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) {
+        setGalleryMsg("✅ Foto dihapus");
+        loadGallery(galleryMatchCode);
+      } else {
+        setGalleryMsg("❌ Gagal menghapus");
+      }
+    } catch (err) {
+      console.error(err);
+      setGalleryMsg("❌ Gagal menghapus");
+    }
+  };
+  
+  const handleGalleryDeleteAll = async () => {
+    if (!galleryMatchCode) return;
+    if (!confirm(`Yakin ingin menghapus SEMUA FOTO pertandingan ${galleryMatchCode}? Tindakan ini tidak dapat dibatalkan.`)) return;
+
+    setGalleryMsg("⏳ Menghapus semua foto...");
+    try {
+      const res = await fetch("/api/admin/gallery/all", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ matchCode: galleryMatchCode }),
+      });
+      if (res.ok) {
+        setGalleryPhotos([]);
+        setGalleryMsg("✅ Berhasil menghapus semua foto.");
+        // Optional: refresh summary later if they back out
+      } else {
+        const data = await res.json();
+        setGalleryMsg(`❌ Gagal: ${data.error}`);
+      }
+    } catch {
+      setGalleryMsg("❌ Terjadi kesalahan saat menghapus semua foto.");
+    }
+  };
+
+  const handleGalleryMove = async (index: number, direction: 'up' | 'down') => {
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === galleryPhotos.length - 1) return;
+    
+    const newPhotos = [...galleryPhotos];
+    const targetIdx = direction === 'up' ? index - 1 : index + 1;
+    
+    // Swap
+    const temp = newPhotos[index];
+    newPhotos[index] = newPhotos[targetIdx];
+    newPhotos[targetIdx] = temp;
+    
+    // Update sortOrder local
+    newPhotos.forEach((p, i) => p.sortOrder = i);
+    setGalleryPhotos(newPhotos);
+    
+    // DB Update
+    try {
+      setGalleryMsg("⏳ Menyimpan urutan...");
+      const res = await fetch("/api/admin/gallery", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates: newPhotos.map(p => ({ id: p.id, sortOrder: p.sortOrder })) }),
+      });
+      if (res.ok) setGalleryMsg(null);
+      else setGalleryMsg("❌ Gagal menyimpan urutan");
+    } catch (err) {
+      console.error(err);
+      setGalleryMsg("❌ Gagal menyimpan urutan");
+    }
+  };
+
   return (
     <div className="admin-layout">
       {/* Sidebar */}
@@ -414,6 +611,12 @@ export default function AdminPage() {
           >
             ⚙️ Pengaturan Utama
           </button>
+          <button
+            className={`nav-btn ${mainTab === "gallery" ? "active" : ""}`}
+            onClick={() => setMainTab("gallery")}
+          >
+            📸 Galeri Foto
+          </button>
         </nav>
         <div className="admin-sidebar-footer">
           <button onClick={handleLogout} className="logout-btn">
@@ -427,15 +630,28 @@ export default function AdminPage() {
         {mainTab === "matches" && (
           <div className="admin-content-container">
             <nav className="admin-tabs">
-              {categories.map((cat) => (
-                <button
-                  key={cat.id}
-                  className={`admin-tab ${activeCategory === cat.id ? "active" : ""}`}
-                  onClick={() => setActiveCategory(cat.id)}
-                >
-                  {cat.name}
-                </button>
-              ))}
+              {categories.map((cat) => {
+                const styles = getCategoryStyles(cat.name);
+                const isActive = activeCategory === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    className={`admin-tab ${isActive ? "active" : ""}`}
+                    onClick={() => setActiveCategory(cat.id)}
+                    style={isActive ? {
+                      backgroundColor: styles.background,
+                      borderColor: styles.border,
+                      color: styles.color,
+                      fontWeight: 800
+                    } : {
+                      borderColor: 'transparent',
+                      color: 'var(--text-muted)'
+                    }}
+                  >
+                    {cat.name}
+                  </button>
+                );
+              })}
             </nav>
 
             <div className="admin-actions-row">
@@ -636,12 +852,26 @@ export default function AdminPage() {
                               </div>
                             )}
 
-                            <button
-                              className="edit-btn"
-                              onClick={() => setEditingMatch({ ...match })}
-                            >
-                              ✏️ Edit
-                            </button>
+                            <div style={{ display: "flex", gap: "0.5rem", marginTop: "auto" }}>
+                              <button
+                                className="edit-btn"
+                                onClick={() => setEditingMatch({ ...match })}
+                                style={{ flex: 1 }}
+                              >
+                                ✏️ Edit
+                              </button>
+                              <button
+                                className="save-btn"
+                                onClick={() => {
+                                  const num = match.matchCode.replace(/\D/g, "");
+                                  const unified = `${activeCat?.name || "Unknown"}-${num}`;
+                                  handleGalleryAddShortcut(unified);
+                                }}
+                                style={{ flex: 1, padding: "0.4rem", fontSize: "0.75rem", background: "rgba(212, 175, 55, 0.2)", borderColor: "var(--accent)" }}
+                              >
+                                📸 Galeri
+                              </button>
+                            </div>
                           </div>
                         ))}
                     </div>
@@ -785,7 +1015,22 @@ export default function AdminPage() {
                             <td style={{ padding: '0.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 700 }}>{m.scoreTeam1 || '0'} - {m.scoreTeam2 || '0'}</td>
                             <td style={{ padding: '0.5rem', color: m.winner === 2 ? '#86efac' : 'var(--text-primary)', fontSize: '0.75rem' }}>{m.team2Player1 || '-'}{m.team2Player2 ? ` / ${m.team2Player2}` : ''}</td>
                             <td style={{ padding: '0.5rem', textAlign: 'center' }}><span style={{ padding: '0.2rem 0.5rem', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 600, background: m.status === 'completed' ? 'rgba(34,197,94,0.15)' : 'rgba(99,102,241,0.15)', color: m.status === 'completed' ? '#86efac' : 'var(--accent-hover)' }}>{m.status === 'completed' ? 'Selesai' : 'Belum'}</span></td>
-                            <td style={{ padding: '0.5rem', textAlign: 'center' }}><button onClick={() => setEditingSchedMatch(m)} style={{ padding: '0.3rem 0.6rem', borderRadius: '6px', border: '1px solid var(--accent)', background: 'rgba(99,102,241,0.1)', color: 'var(--accent-hover)', cursor: 'pointer', fontSize: '0.7rem' }}>✏️ Edit</button></td>
+                            <td style={{ padding: '0.5rem', textAlign: 'center' }}>
+                              <div style={{ display: 'flex', gap: '0.3rem', justifyContent: 'center' }}>
+                                <button onClick={() => setEditingSchedMatch(m)} style={{ padding: '0.3rem 0.6rem', borderRadius: '6px', border: '1px solid var(--accent)', background: 'rgba(99,102,241,0.1)', color: 'var(--accent-hover)', cursor: 'pointer', fontSize: '0.7rem' }}>✏️ Edit</button>
+                                <button 
+                                  onClick={() => {
+                                    const num = m.gameNumber.replace(/\D/g, "");
+                                    const unified = `${m.category}-${num}`;
+                                    handleGalleryAddShortcut(unified);
+                                  }} 
+                                  style={{ padding: '0.3rem 0.6rem', borderRadius: '6px', border: '1px solid var(--accent)', background: 'rgba(212, 175, 55, 0.15)', color: 'var(--accent)', cursor: 'pointer', fontSize: '0.7rem' }}
+                                  title="Kelola Galeri Foto"
+                                >
+                                  📸 Galeri
+                                </button>
+                              </div>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -796,6 +1041,256 @@ export default function AdminPage() {
             })()}
           </div>
         )}
+        
+        {mainTab === "gallery" && (
+          <div className="admin-content-container">
+            <div className="admin-sidebar-header" style={{ marginBottom: "1rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h2 style={{ margin: 0 }}>📸 Kelola Galeri Foto Pertandingan</h2>
+              {!showGalleryAdd ? (
+                <button className="save-btn" onClick={() => { setGalleryMatchCode(""); setGalleryPhotos([]); setShowGalleryAdd(true); }}>
+                  ➕ Tambah Galeri Baru
+                </button>
+              ) : (
+                <button className="cancel-btn" onClick={() => { setShowGalleryAdd(false); loadGallerySummary(); }}>
+                  ◀ Kembali
+                </button>
+              )}
+            </div>
+            
+            {!showGalleryAdd ? (
+              // SUMMARY VIEW
+              gallerySummaryLoading ? (
+                <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-muted)" }}>Memuat ringkasan galeri...</div>
+              ) : gallerySummary.length === 0 ? (
+                <div className="empty-state">
+                  <p>📸 Belum ada galeri foto yang tersimpan.</p>
+                  <p className="empty-hint">Silakan tambahkan galeri foto pertandingan baru.</p>
+                </div>
+              ) : (
+                <div className="schedule-list">
+                  {(() => {
+                    const mapped = gallerySummary.map(s => {
+                      // Normalize candidate code for comparison
+                      const candidateCode = s.matchCode?.trim().toLowerCase() || "";
+                      
+                      // Try find in schedule matches first
+                      const sm = schedMatches.find(m => {
+                        const codeNum = m.gameNumber.replace(/\D/g, "");
+                        const normalizedTarget = `${m.category?.trim()}-${codeNum}`.toLowerCase();
+                        return normalizedTarget === candidateCode;
+                      });
+                      if (sm) return { ...s, dayDate: sm.dayDate, category: sm.category, info: sm };
+
+                      // Try find in bracket matches
+                      const gm = matches.find(m => {
+                        const codeNum = m.matchCode.replace(/\D/g, "");
+                        const categoryName = categories.find(c => c.id === m.categoryId)?.name || "Unknown";
+                        const normalizedTarget = `${categoryName.trim()}-${codeNum}`.toLowerCase();
+                        return normalizedTarget === candidateCode;
+                      });
+                      if (gm) {
+                        const catName = categories.find(c => c.id === gm.categoryId)?.name || "Lainnya";
+                        return { ...s, dayDate: "Bagan Utama", category: catName, info: gm };
+                      }
+
+                      return { ...s, dayDate: "Lainnya", category: "Lainnya", info: null };
+                    });
+                    const grouped = mapped.reduce((acc, curr) => {
+                      if (!acc[curr.dayDate]) acc[curr.dayDate] = {};
+                      if (!acc[curr.dayDate][curr.category]) acc[curr.dayDate][curr.category] = [];
+                      acc[curr.dayDate][curr.category].push(curr);
+                      return acc;
+                    }, {} as Record<string, Record<string, any[]>>);
+                    
+                    return Object.entries(grouped).map(([day, catGroups]) => (
+                      <div key={day} className="sched-day-group">
+                        <h3 className="sched-group-title">📅 {day}</h3>
+                        {Object.entries(catGroups as Record<string, any[]>).map(([cat, items]) => (
+                          <div key={cat} style={{ marginBottom: '1.5rem' }}>
+                            {(() => {
+                              const styles = getCategoryStyles(cat);
+                              return (
+                                <div className="sched-category-badge" style={{ 
+                                  marginBottom: '1rem', 
+                                  display: 'inline-block',
+                                  backgroundColor: styles.background,
+                                  color: styles.color,
+                                  border: `1px solid ${styles.border}`
+                                }}>
+                                  {cat}
+                                </div>
+                              );
+                            })()}
+                            <div className="sched-cards" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+                              {(items as any[]).map(item => (
+                                <div key={item.matchCode} className="admin-card clickable" onClick={() => loadGallery(item.matchCode)} style={{ display: 'flex', gap: '1rem', alignItems: 'center', padding: '1rem', cursor: 'pointer', margin: 0 }}>
+                                  <div style={{ width: '80px', height: '60px', borderRadius: '6px', overflow: 'hidden', flexShrink: 0, background: '#000', border: '1px solid var(--border-light)' }}>
+                                    {item.thumbnail ? <img src={item.thumbnail} alt="thumb" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
+                                  </div>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--accent)' }}>#{item.matchCode}</div>
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>{item.photoCount} Foto Tersimpan</div>
+                                    {item.info && (
+                                      <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {item.info.team1Player1}{item.info.team1Player2 ? ` / ${item.info.team1Player2}` : ''} <span style={{ color: 'var(--text-muted)' }}>vs</span> {item.info.team2Player1}{item.info.team2Player2 ? ` / ${item.info.team2Player2}` : ''}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ));
+                  })()}
+                </div>
+              )
+            ) : (
+              // DETAILED UPLOAD VIEW
+              <>
+                <div className="admin-card">
+                  <div style={{ display: "flex", gap: "1rem", alignItems: "flex-end", flexWrap: "wrap" }}>
+                    <div className="form-group" style={{ flex: 2, minWidth: "150px", marginBottom: 0 }}>
+                      <label>Kategori Pertandingan</label>
+                      <select 
+                        value={galleryMatchCode.includes('-') ? galleryMatchCode.substring(0, galleryMatchCode.lastIndexOf('-')) : ""} 
+                        onChange={(e) => {
+                          const numPart = galleryMatchCode.includes('-') ? galleryMatchCode.substring(galleryMatchCode.lastIndexOf('-') + 1) : galleryMatchCode;
+                          setGalleryMatchCode(`${e.target.value}-${numPart}`);
+                        }}
+                      >
+                        <option value="">-- Pilih Kategori --</option>
+                        {categories.map(c => (
+                          <option key={c.id} value={c.name}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-group" style={{ flex: 1, minWidth: "100px", marginBottom: 0 }}>
+                      <label>Nomor Urut / Game</label>
+                      <input 
+                        type="number" 
+                        value={galleryMatchCode.includes('-') ? galleryMatchCode.substring(galleryMatchCode.lastIndexOf('-') + 1) : galleryMatchCode} 
+                        onChange={(e) => {
+                          const catPart = galleryMatchCode.includes('-') ? galleryMatchCode.substring(0, galleryMatchCode.lastIndexOf('-')) : "";
+                          setGalleryMatchCode(`${catPart ? catPart + '-' : ''}${e.target.value}`);
+                        }} 
+                        placeholder="Cth: 1" 
+                      />
+                    </div>
+                    <button className="save-btn" onClick={() => loadGallery(galleryMatchCode)}>
+                      🔍 Buka Galeri
+                    </button>
+                  </div>
+                  <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.5rem" }}>
+                    Tentukan kategori lalu isi dengan identitas angkanya (misal pertandingan M1 atau #1, masukkan angka 1).
+                  </p>
+                </div>
+
+                {galleryMsg && (
+                  <div style={{ 
+                    marginTop: "1rem", padding: "0.75rem", borderRadius: "8px", fontSize: "0.85rem",
+                    background: galleryMsg.startsWith("❌") ? "rgba(239, 68, 68, 0.1)" : 
+                               (galleryMsg.startsWith("⏳") ? "rgba(245, 158, 11, 0.1)" : "rgba(34, 197, 94, 0.1)"),
+                    color: galleryMsg.startsWith("❌") ? "#fca5a5" : 
+                          (galleryMsg.startsWith("⏳") ? "#fcd34d" : "#86efac")
+                  }}>
+                    {galleryMsg}
+                  </div>
+                )}
+
+                <div className="admin-card" style={{ marginTop: "1.5rem" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                    <h3 style={{ color: "var(--text-primary)" }}>Daftar Foto ({galleryPhotos.length})</h3>
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <label 
+                        className="save-btn" 
+                        style={{ 
+                          background: "var(--accent)", 
+                          cursor: (galleryUploading || !galleryMatchCode) ? "not-allowed" : "pointer",
+                          opacity: (galleryUploading || !galleryMatchCode) ? 0.6 : 1,
+                          display: "inline-block",
+                          padding: "0.5rem 1rem",
+                          borderRadius: "6px",
+                          fontSize: "0.9rem"
+                        }}
+                      >
+                        {galleryUploading ? "⏳ Uploading..." : "➕ Tambah Foto"}
+                        <input 
+                          type="file" 
+                          multiple 
+                          accept="image/*" 
+                          onChange={handleGalleryUpload}
+                          disabled={galleryUploading || !galleryMatchCode}
+                          style={{ display: "none" }}
+                        />
+                      </label>
+                      {galleryPhotos.length > 0 && (
+                        <button 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleGalleryDeleteAll();
+                          }}
+                          style={{ 
+                            background: "rgba(239, 68, 68, 0.1)", 
+                            color: "#fca5a5", 
+                            border: "1px solid rgba(239, 68, 68, 0.3)", 
+                            padding: "0.5rem 1rem", 
+                            borderRadius: "6px", 
+                            cursor: "pointer", 
+                            fontWeight: 600,
+                            fontSize: "0.9rem"
+                          }}
+                        >
+                          🗑️ Hapus Semua
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {galleryLoading ? (
+                    <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-muted)" }}>Memuat foto...</div>
+                  ) : galleryPhotos.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-muted)", background: "var(--glass-bg)", borderRadius: "8px", border: "1px dashed var(--border)" }}>
+                      Belum ada foto untuk pertandingan ini.
+                    </div>
+                  ) : (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "1rem" }}>
+                      {galleryPhotos.map((photo, index) => (
+                        <div key={photo.id} style={{ position: "relative", background: "var(--glass-bg)", borderRadius: "8px", overflow: "hidden", border: "1px solid var(--border-light)" }}>
+                          <img src={photo.url} alt="Gallery" style={{ width: "100%", height: "120px", objectFit: "cover", display: "block" }} />
+                          
+                          <div style={{ display: "flex", justifyContent: "space-between", padding: "0.4rem", background: "rgba(0,0,0,0.6)" }}>
+                            <div style={{ display: "flex", gap: "0.2rem" }}>
+                              <button 
+                                onClick={() => handleGalleryMove(index, 'up')} 
+                                disabled={index === 0}
+                                style={{ background: "transparent", border: "none", color: index === 0 ? "#555" : "#fff", cursor: index === 0 ? "default" : "pointer" }}
+                                title="Pindah ke kiri/atas"
+                              >◀</button>
+                              <button 
+                                onClick={() => handleGalleryMove(index, 'down')} 
+                                disabled={index === galleryPhotos.length - 1}
+                                style={{ background: "transparent", border: "none", color: index === galleryPhotos.length - 1 ? "#555" : "#fff", cursor: index === galleryPhotos.length - 1 ? "default" : "pointer" }}
+                                title="Pindah ke kanan/bawah"
+                              >▶</button>
+                            </div>
+                            <button 
+                              onClick={() => handleGalleryDelete(photo.id)}
+                              style={{ background: "transparent", border: "none", color: "#fca5a5", cursor: "pointer", fontSize: "0.9rem" }}
+                              title="Hapus"
+                            >🗑️</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </main>
 
       {/* Edit Match Modal */}
@@ -804,7 +1299,19 @@ export default function AdminPage() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Edit Pertandingan {editingMatch.matchCode}</h2>
-              <button className="modal-close" onClick={() => setEditingMatch(null)}>✕</button>
+              <div>
+                {editingMatch.status === "completed" && (
+                  <button 
+                    onClick={() => {
+                      const codeNum = editingMatch.matchCode.replace(/\D/g, "");
+                      const unified = `${activeCat?.name || "Unknown"}-${codeNum}`;
+                      handleGalleryAddShortcut(unified);
+                    }}
+                    style={{ background: "rgba(59,130,246,0.15)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.3)", padding: "0.3rem 0.6rem", borderRadius: "6px", fontSize: "0.75rem", marginRight: "1rem", cursor: "pointer", fontWeight: 600 }}
+                  >📸 Kelola Galeri</button>
+                )}
+                <button className="modal-close" onClick={() => setEditingMatch(null)}>✕</button>
+              </div>
             </div>
             <div className="modal-body">
               <div className="form-row">
@@ -844,7 +1351,21 @@ export default function AdminPage() {
       {editingSchedMatch && (
         <div className="modal-overlay" onClick={() => setEditingSchedMatch(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>✏️ Edit Jadwal — {editingSchedMatch.gameNumber} ({editingSchedMatch.category})</h3>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+              <h3 style={{ margin: 0 }}>✏️ Edit Jadwal — {editingSchedMatch.gameNumber} ({editingSchedMatch.category})</h3>
+              <div>
+                {editingSchedMatch.status === "completed" && (
+                  <button 
+                    onClick={() => {
+                      const codeNum = editingSchedMatch.gameNumber.replace(/\D/g, "");
+                      const unified = `${editingSchedMatch.category}-${codeNum}`;
+                      handleGalleryAddShortcut(unified);
+                    }}
+                    style={{ background: "rgba(59,130,246,0.15)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.3)", padding: "0.3rem 0.6rem", borderRadius: "6px", fontSize: "0.75rem", marginRight: "1rem", cursor: "pointer", fontWeight: 600 }}
+                  >📸 Kelola Galeri</button>
+                )}
+              </div>
+            </div>
             <div className="modal-body">
               <div className="form-row">
                 <div className="form-group"><label>Jam</label><input value={editingSchedMatch.time} onChange={e => setEditingSchedMatch({...editingSchedMatch, time: e.target.value})} /></div>

@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { getCategoryStyles } from "@/lib/colors";
 
 interface Match {
   id: number;
+  categoryId: number;
   matchCode: string;
   round: string;
   roundOrder: number;
@@ -110,7 +112,7 @@ function TeamRow({
   );
 }
 
-function MatchCard({ match, roundClass, allMatches, isFirstRound }: { match: Match; roundClass: string; allMatches: Match[]; isFirstRound: boolean }) {
+function MatchCard({ match, categoryName, roundClass, allMatches, isFirstRound, onCardClick }: { match: Match; categoryName: string; roundClass: string; allMatches: Match[]; isFirstRound: boolean; onCardClick?: (code: string, cat: string) => void }) {
   const prev1 = allMatches.find(m => m.nextMatchCode === match.matchCode && m.nextMatchSlot === 1);
   const prev2 = allMatches.find(m => m.nextMatchCode === match.matchCode && m.nextMatchSlot === 2);
 
@@ -121,7 +123,10 @@ function MatchCard({ match, roundClass, allMatches, isFirstRound }: { match: Mat
   const firstRoundClass = isFirstRound ? "round-first" : "";
 
   return (
-    <div className={`match-card ${roundClass} ${slotClass} ${firstRoundClass} ${match.isBye ? "bye-match" : ""} ${match.status === "completed" ? "completed" : ""}`}>
+    <div 
+      className={`match-card ${roundClass} ${slotClass} ${firstRoundClass} ${match.isBye ? "bye-match" : ""} ${match.status === "completed" ? "completed" : ""} ${onCardClick && match.status === "completed" && !match.isBye ? "clickable" : ""}`}
+      onClick={() => { if (match.status === "completed" && !match.isBye && onCardClick) onCardClick(match.matchCode, categoryName); }}
+    >
       <div className="match-header">
         <span className="match-code">{match.matchCode}</span>
         {match.schedule && (
@@ -211,17 +216,21 @@ function SchedTeamRow({ player1Raw, player2Raw, teamNumber, isWinner, isComplete
 }
 
 /* ============== Schedule Card ============== */
-function ScheduleCard({ match, catDisplayName }: { match: ScheduleMatch; catDisplayName: string }) {
+function ScheduleCard({ match, catDisplayName, onCardClick }: { match: ScheduleMatch; catDisplayName: string; onCardClick?: (code: string, cat: string) => void }) {
   const isCompleted = match.status === "completed";
+  const styles = getCategoryStyles(match.category);
 
   return (
-    <div className={`schedule-card ${isCompleted ? "completed" : ""}`}>
+    <div 
+      className={`schedule-card ${isCompleted ? "completed" : ""} ${isCompleted && onCardClick ? "clickable" : ""}`}
+      onClick={() => { if (isCompleted && onCardClick) onCardClick(match.gameNumber, catDisplayName); }}
+    >
       <div className="sched-time-col">
         <span className="sched-time">{match.time}</span>
         <span className="sched-game">{match.gameNumber}</span>
       </div>
       <div className="sched-content">
-        <div className="sched-category-badge">{catDisplayName}</div>
+        <div className="sched-category-badge" style={{ backgroundColor: styles.background, color: styles.color, border: `1px solid ${styles.border}` }}>{catDisplayName}</div>
         <div className="sched-match-box">
           <SchedTeamRow player1Raw={match.team1Player1} player2Raw={match.team1Player2} teamNumber={match.team1Number} isWinner={match.winner === 1} isCompleted={isCompleted} score={match.scoreTeam1} />
           <div className="team-divider" />
@@ -234,7 +243,7 @@ function ScheduleCard({ match, catDisplayName }: { match: ScheduleMatch; catDisp
 
 
 export default function HomePage() {
-  const [viewMode, setViewMode] = useState<"bracket" | "schedule">("bracket");
+  const [viewMode, setViewMode] = useState<"bracket" | "schedule" | "gallery">("bracket");
   const [categories, setCategories] = useState<Category[]>([]);
   const [activeCategory, setActiveCategory] = useState<number | null>(null);
   const [matches, setMatches] = useState<Match[]>([]);
@@ -248,6 +257,51 @@ export default function HomePage() {
   const [schedFilterMode, setSchedFilterMode] = useState<"day" | "category">("day");
   const [activeDay, setActiveDay] = useState<string>("");
   const [activeSchedCat, setActiveSchedCat] = useState<string>("");
+
+  const [gallerySummary, setGallerySummary] = useState<any[]>([]);
+  const [gallerySummaryLoading, setGallerySummaryLoading] = useState(false);
+
+  // Gallery state
+  const [galleryPhotos, setGalleryPhotos] = useState<any[]>([]);
+  const [galleryLoading, setGalleryLoading] = useState(false);
+  const [pendingGalleryInfo, setPendingGalleryInfo] = useState<{code: string; cat: string} | null>(null);
+  const [showEmptyGalleryPrompt, setShowEmptyGalleryPrompt] = useState(false);
+  const [openLightboxCode, setOpenLightboxCode] = useState<string | null>(null);
+  const [activePhotoIndex, setActivePhotoIndex] = useState(0);
+
+  const handleCardClick = (rawCode: string, catName: string) => {
+    const codeNumber = rawCode.replace(/\D/g, "");
+    if (!codeNumber) return;
+    setPendingGalleryInfo({ code: codeNumber, cat: catName });
+  };
+
+  const confirmFetchGallery = async () => {
+    if (!pendingGalleryInfo) return;
+    const unifiedCode = `${pendingGalleryInfo.cat}-${pendingGalleryInfo.code}`;
+    setPendingGalleryInfo(null);
+    
+    setGalleryLoading(true);
+    setShowEmptyGalleryPrompt(false);
+    try {
+      const res = await fetch(`/api/gallery?match=${encodeURIComponent(unifiedCode)}`);
+      const data = await res.json();
+      if (res.ok && data.photos && data.photos.length > 0) {
+        setGalleryPhotos(data.photos);
+        setOpenLightboxCode(unifiedCode);
+        setActivePhotoIndex(0);
+      } else {
+        setShowEmptyGalleryPrompt(true);
+      }
+    } catch {
+      // alert("Gagal memuat galeri.");
+    } finally {
+      setGalleryLoading(false);
+    }
+  };
+
+  const openGallery = () => {
+    // legacy, remove or repurpose if needed
+  };
   const [schedCatConfig, setSchedCatConfig] = useState<Array<{name: string; displayName: string; sortOrder: number}>>([]);
 
   useEffect(() => {
@@ -330,6 +384,29 @@ export default function HomePage() {
       loadSchedule();
     }
   }, [viewMode, loadSchedule, scheduleData.length]);
+
+  const loadGallerySummary = useCallback(() => {
+    setGallerySummaryLoading(true);
+    fetch("/api/gallery/summary")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.summary) {
+          setGallerySummary(data.summary);
+        }
+      })
+      .catch(console.error)
+      .finally(() => setGallerySummaryLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (viewMode === "gallery" && gallerySummary.length === 0) {
+      loadGallerySummary();
+    }
+    // Also load schedule if needed for enrichment (to map game categories)
+    if (viewMode === "gallery" && scheduleData.length === 0) {
+      loadSchedule();
+    }
+  }, [viewMode, gallerySummary.length, loadGallerySummary, scheduleData.length, loadSchedule]);
 
   // Group matches by round (for bracket view)
   const rounds = matches.reduce(
@@ -493,13 +570,15 @@ export default function HomePage() {
                           {roundMatches
                             .sort((a, b) => a.matchOrder - b.matchOrder)
                             .map((match) => (
-                              <MatchCard
-                                key={match.id}
-                                match={match}
-                                roundClass={ROUND_CLASSES[round] || ""}
-                                allMatches={matches}
-                                isFirstRound={match.roundOrder === 0}
-                              />
+                                <MatchCard
+                                  key={match.id}
+                                  match={match}
+                                  categoryName={activeCat?.name || ""}
+                                  roundClass={ROUND_CLASSES[round] || ""}
+                                  allMatches={matches}
+                                  isFirstRound={match.roundOrder === 0}
+                                  onCardClick={handleCardClick}
+                                />
                             ))}
                         </div>
                       </div>
@@ -548,15 +627,29 @@ export default function HomePage() {
               {/* Category picker */}
               {schedFilterMode === "category" && (
                 <div className="sched-cat-picker">
-                  {scheduleCategories.map((cat) => (
-                    <button
-                      key={cat}
-                      className={`sched-cat-btn ${activeSchedCat === cat ? "active" : ""}`}
-                      onClick={() => setActiveSchedCat(cat)}
-                    >
-                      {getCatDisplayName(cat)}
-                    </button>
-                  ))}
+                  {scheduleCategories.map((cat) => {
+                    const styles = getCategoryStyles(cat);
+                    const isActive = activeSchedCat === cat;
+                    return (
+                      <button
+                        key={cat}
+                        className={`sched-cat-btn ${isActive ? "active" : ""}`}
+                        onClick={() => setActiveSchedCat(cat)}
+                        style={isActive ? { 
+                          backgroundColor: styles.background, 
+                          borderColor: styles.border, 
+                          color: styles.color,
+                          fontWeight: 800
+                        } : { 
+                          borderColor: styles.border, 
+                          color: styles.color,
+                          backgroundColor: 'transparent'
+                        }}
+                      >
+                        {getCatDisplayName(cat)}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 
@@ -577,7 +670,7 @@ export default function HomePage() {
                       <h2 className="sched-day-title">📅 {activeDay}</h2>
                       <div className="sched-cards">
                         {filteredSchedule.map((m) => (
-                          <ScheduleCard key={m.id} match={m} catDisplayName={getCatDisplayName(m.category)} />
+                          <ScheduleCard key={m.id} match={m} catDisplayName={getCatDisplayName(m.category)} onCardClick={handleCardClick} />
                         ))}
                       </div>
                     </>
@@ -587,7 +680,7 @@ export default function HomePage() {
                         <h3 className="sched-group-title">📅 {day}</h3>
                         <div className="sched-cards">
                           {dayMatches.map((m) => (
-                            <ScheduleCard key={m.id} match={m} catDisplayName={getCatDisplayName(m.category)} />
+                            <ScheduleCard key={m.id} match={m} catDisplayName={getCatDisplayName(m.category)} onCardClick={handleCardClick} />
                           ))}
                         </div>
                       </div>
@@ -599,10 +692,133 @@ export default function HomePage() {
           )}
         </>
       )}
-
       <footer className="footer">
         <p>{globalSettings.footerText}</p>
       </footer>
+
+      {/* Loading Overlay */}
+      {galleryLoading && (
+        <div className="lightbox-overlay" style={{ zIndex: 3000 }}>
+          <div className="loading" style={{ background: "var(--glass-bg)", padding: "2rem", borderRadius: "12px", border: "1px solid var(--border-light)" }}>
+            <div className="spinner"></div>
+            <p style={{ marginTop: "1rem", color: "var(--text-primary)" }}>Sedang mencari foto...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Empty Gallery Dialog (Styled) */}
+      {showEmptyGalleryPrompt && (
+        <div className="lightbox-overlay" onClick={() => setShowEmptyGalleryPrompt(false)}>
+          <div className="gallery-prompt-modal" onClick={e => e.stopPropagation()} style={{ 
+            border: "2px solid var(--accent)", 
+            padding: "2rem",
+            maxWidth: "400px",
+            textAlign: "center"
+          }}>
+            <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>📸</div>
+            <h3 style={{ margin: "0 0 1rem 0", color: "var(--accent)", fontSize: "1.5rem", fontWeight: 800 }}>Belum Ada Foto</h3>
+            <p style={{ margin: "0 0 2rem 0", color: "var(--text-secondary)", lineHeight: "1.6" }}>
+              Foto untuk pertandingan ini belum tersedia. <br/>Harap bersabar atau hubungi <strong>Mas Hadi</strong> (Admin) untuk pembaruan.
+            </p>
+            <button 
+              className="save-btn" 
+              onClick={() => setShowEmptyGalleryPrompt(false)}
+              style={{ 
+                width: "100%", 
+                padding: "1rem", 
+                borderRadius: "12px",
+                background: "linear-gradient(45deg, var(--accent), var(--accent-hover))",
+                boxShadow: "0 4px 15px rgba(212, 175, 55, 0.3)",
+                fontSize: "1rem",
+                fontWeight: 700
+              }}
+            >
+              Oke, Saya Mengerti
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Primary Gallery Confirmation Modal */}
+      {pendingGalleryInfo && (
+        <div className="lightbox-overlay" onClick={() => setPendingGalleryInfo(null)}>
+          <div className="gallery-prompt-modal" onClick={(e) => e.stopPropagation()} style={{ padding: "2rem", maxWidth: "450px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.5rem" }}>
+              <div style={{ width: "50px", height: "50px", background: "rgba(212, 175, 55, 0.1)", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.5rem" }}>
+                🎯
+              </div>
+              <div>
+                <h2 style={{ fontSize: "1.4rem", color: "var(--text-primary)", margin: 0 }}>Lihat Galeri Foto?</h2>
+                <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", margin: 0 }}>#{pendingGalleryInfo.cat}-{pendingGalleryInfo.code}</p>
+              </div>
+            </div>
+            
+            <p style={{ margin: "0 0 2rem 0", color: "var(--text-secondary)", lineHeight: "1.6" }}>
+              Apakah Anda ingin membuka album foto untuk pertandingan yang telah selesai ini?
+            </p>
+            
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              <button 
+                className="cancel-btn" 
+                onClick={() => setPendingGalleryInfo(null)}
+                style={{ padding: "1rem", borderRadius: "12px" }}
+              >
+                Kembali
+              </button>
+              <button 
+                className="save-btn" 
+                onClick={confirmFetchGallery}
+                style={{ 
+                  padding: "1rem", 
+                  borderRadius: "12px", 
+                  background: "var(--accent)",
+                  boxShadow: "0 4px 12px rgba(212, 175, 55, 0.2)"
+                }}
+              >
+                Ya, Lihat Galeri
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Gallery Lightbox Modal */}
+      {openLightboxCode && galleryPhotos.length > 0 && (
+        <div className="lightbox-overlay" onClick={() => setOpenLightboxCode(null)}>
+          <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
+            <div className="lightbox-header">
+              <div className="lightbox-title">📸 Galeri Pertandingan ({openLightboxCode})</div>
+              <button className="lightbox-close" onClick={() => setOpenLightboxCode(null)}>✕</button>
+            </div>
+            
+            <div className="lightbox-main-photo">
+              <img src={galleryPhotos[activePhotoIndex].url} alt={`Photo ${activePhotoIndex + 1}`} />
+              
+              <a 
+                href={galleryPhotos[activePhotoIndex].url} 
+                download={`Pertandingan_${openLightboxCode}_Foto_${activePhotoIndex + 1}.jpg`}
+                target="_blank"
+                rel="noreferrer"
+                className="lightbox-download-btn"
+              >
+                ⬇️ Download
+              </a>
+            </div>
+
+            <div className="lightbox-thumbnails">
+              {galleryPhotos.map((photo, idx) => (
+                <div 
+                  key={photo.id} 
+                  className={`lightbox-thumbnail ${idx === activePhotoIndex ? "active" : ""}`}
+                  onClick={() => setActivePhotoIndex(idx)}
+                >
+                  <img src={photo.url} alt={`Thumb ${idx + 1}`} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
