@@ -71,3 +71,43 @@ export const adminUsers = mysqlTable("admin_users", {
   passwordHash: varchar("password_hash", { length: 255 }).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const scheduleMatches = mysqlTable("schedule_matches", {
+  id: int("id").primaryKey().autoincrement(),
+  tournamentId: int("tournament_id")
+    .notNull()
+    .references(() => tournaments.id),
+  dayDate: varchar("day_date", { length: 100 }).notNull(), // e.g., "Sabtu, 4 April 2026"
+  dayOrder: int("day_order").notNull(), // sequential day number (1, 2, 3...)
+  matchOrder: int("match_order").notNull(), // position within the day (1-8)
+  time: varchar("time", { length: 10 }).notNull(), // e.g., "18:30"
+  category: varchar("category", { length: 50 }).notNull(), // e.g., "E-F", "64 Tim C-D"
+  gameNumber: varchar("game_number", { length: 20 }).notNull(), // e.g., "#1", "#33"
+  team1Player1: varchar("team1_player1", { length: 255 }),
+  team1Player2: varchar("team1_player2", { length: 255 }),
+  team1Number: varchar("team1_number", { length: 20 }),
+  team2Player1: varchar("team2_player1", { length: 255 }),
+  team2Player2: varchar("team2_player2", { length: 255 }),
+  team2Number: varchar("team2_number", { length: 20 }),
+  scoreTeam1: varchar("score_team1", { length: 50 }),
+  scoreTeam2: varchar("score_team2", { length: 50 }),
+  winner: int("winner"), // 1 or 2 or null
+  status: mysqlEnum("status", ["upcoming", "ongoing", "completed"])
+    .default("upcoming")
+    .notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
+
+export const scheduleSettings = mysqlTable("schedule_settings", {
+  id: int("id").primaryKey().autoincrement(),
+  tournamentId: int("tournament_id")
+    .notNull()
+    .references(() => tournaments.id),
+  csvUrl: text("csv_url"),
+  autoImportInterval: int("auto_import_interval").default(0).notNull(),
+  categoryConfig: text("category_config"), // JSON: [{name, displayName, sortOrder}]
+  lastImportedAt: timestamp("last_imported_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+});
