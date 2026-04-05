@@ -53,14 +53,15 @@ export function normalizeMatchCode(code: string | null): string {
 /**
  * Normalizes category names for better matching.
  * e.g. "64 Tim U110" -> "u110", "U110" -> "u110", "U-110" -> "u110"
- * Aggresively strips all non-alphanumeric characters.
+ * "Internal E-F" -> "ef", "E-F" -> "ef"
  */
 export function normalizeCategoryName(name: string | null): string {
   if (!name) return "";
   return name.toLowerCase()
+    .replace(/internal/g, "") // Remove "internal" prefix/word
     .replace(/\s+/g, "")
     .replace(/\d+tim/g, "") // Remove "64Tim", "32Tim" etc.
-    .replace(/[^a-z0-9]/g, "") // STRIP ALL NON-ALPHANUMERIC CHARACTER (e.g. -, _, ., etc.)
+    .replace(/[^a-z0-9]/g, "") // Strip all non-alphanumeric characters
     .trim();
 }
 

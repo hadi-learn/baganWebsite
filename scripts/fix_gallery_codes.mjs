@@ -17,6 +17,7 @@ function normalizeMatchCode(code) {
 function normalizeCategoryName(name) {
   if (!name) return "";
   return name.toLowerCase()
+    .replace(/internal/g, "")
     .replace(/\s+/g, "")
     .replace(/\d+tim/g, "")
     .replace(/[^a-z0-9]/g, "")
