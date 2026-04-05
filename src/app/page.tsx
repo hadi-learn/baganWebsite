@@ -123,7 +123,7 @@ function TeamRow({
   );
 }
 
-function MatchCard({ match, categoryName, roundClass, allMatches, isFirstRound, onCardClick }: { match: Match; categoryName: string; roundClass: string; allMatches: Match[]; isFirstRound: boolean; onCardClick?: (code: string, cat: string) => void }) {
+function MatchCard({ match, categoryName, roundClass, allMatches, isFirstRound, onCardClick }: { match: Match; categoryName: string; roundClass: string; allMatches: Match[]; isFirstRound: boolean; onCardClick?: (code: string, cat: string, info: { detail: string; score: string; categoryName: string }) => void }) {
   const prev1 = allMatches.find(m => m.nextMatchCode === match.matchCode && m.nextMatchSlot === 1);
   const prev2 = allMatches.find(m => m.nextMatchCode === match.matchCode && m.nextMatchSlot === 2);
 
@@ -136,7 +136,13 @@ function MatchCard({ match, categoryName, roundClass, allMatches, isFirstRound, 
   return (
     <div 
       className={`match-card ${roundClass} ${slotClass} ${firstRoundClass} ${match.isBye ? "bye-match" : ""} ${match.status === "completed" ? "completed" : ""} ${onCardClick && match.status === "completed" && !match.isBye ? "clickable" : ""}`}
-      onClick={() => { if (match.status === "completed" && !match.isBye && onCardClick) onCardClick(match.matchCode, categoryName); }}
+      onClick={() => { 
+        if (match.status === "completed" && !match.isBye && onCardClick) {
+          const detail = `${match.team1Name || "—"} vs ${match.team2Name || "—"}`;
+          const score = (match.scoreTeam1 || "-") + " : " + (match.scoreTeam2 || "-");
+          onCardClick(match.matchCode, categoryName, { detail, score, categoryName });
+        }
+      }}
     >
       <div className="match-header">
         <span className="match-code">{match.matchCode}</span>
@@ -206,14 +212,20 @@ function SchedTeamRow({ player1Raw, player2Raw, teamNumber, isWinner, isComplete
 }
 
 /* ============== Schedule Card ============== */
-function ScheduleCard({ match, catDisplayName, onCardClick }: { match: ScheduleMatch; catDisplayName: string; onCardClick?: (code: string, cat: string) => void }) {
+function ScheduleCard({ match, catDisplayName, onCardClick }: { match: ScheduleMatch; catDisplayName: string; onCardClick?: (code: string, cat: string, info: { detail: string; score: string; categoryName: string }) => void }) {
   const isCompleted = match.status === "completed";
   const styles = getCategoryStyles(match.category);
 
   return (
     <div 
       className={`schedule-card ${isCompleted ? "completed" : ""} ${isCompleted && onCardClick ? "clickable" : ""}`}
-      onClick={() => { if (isCompleted && onCardClick) onCardClick(match.gameNumber, match.category); }}
+      onClick={() => { 
+        if (isCompleted && onCardClick) {
+          const detail = `${match.team1Player1}${match.team1Player2 ? " & " + match.team1Player2 : ""} vs ${match.team2Player1}${match.team2Player2 ? " & " + match.team2Player2 : ""}`;
+          const score = (match.scoreTeam1 || "-") + " : " + (match.scoreTeam2 || "-");
+          onCardClick(match.gameNumber, match.category, { detail, score, categoryName: catDisplayName }); 
+        }
+      }}
     >
       <div className="sched-time-col">
         <span className="sched-time">{match.time}</span>
@@ -254,22 +266,33 @@ export default function HomePage() {
   // Gallery state
   const [galleryPhotos, setGalleryPhotos] = useState<any[]>([]);
   const [galleryLoading, setGalleryLoading] = useState(false);
-  const [pendingGalleryInfo, setPendingGalleryInfo] = useState<{code: string; cat: string} | null>(null);
+  const [pendingGalleryInfo, setPendingGalleryInfo] = useState<{
+    code: string; 
+    cat: string;
+    detail?: string;
+    score?: string;
+    categoryDisplayName?: string;
+  } | null>(null);
   const [showEmptyGalleryPrompt, setShowEmptyGalleryPrompt] = useState(false);
   const [openLightboxCode, setOpenLightboxCode] = useState<string | null>(null);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
-  const [lastSearchId, setLastSearchId] = useState<string | null>(null);
+  const [selectedMatchInfo, setSelectedMatchInfo] = useState<{detail: string; score: string; category: string} | null>(null);
 
-  const handleCardClick = (rawCode: string, catName: string) => {
+  const handleCardClick = (rawCode: string, catName: string, info?: { detail: string; score: string; categoryName: string }) => {
     const codeNumber = rawCode.replace(/\D/g, "");
     if (!codeNumber) return;
-    setPendingGalleryInfo({ code: codeNumber, cat: catName });
+    setPendingGalleryInfo({ 
+      code: codeNumber, 
+      cat: catName,
+      detail: info?.detail || "",
+      score: info?.score || "",
+      categoryDisplayName: info?.categoryName || catName
+    });
   };
 
   const confirmFetchGallery = async () => {
     if (!pendingGalleryInfo) return;
     const unifiedCode = getUnifiedMatchCode(pendingGalleryInfo.cat, pendingGalleryInfo.code);
-    setLastSearchId(unifiedCode);
     setPendingGalleryInfo(null);
     
     setGalleryLoading(true);
@@ -279,6 +302,11 @@ export default function HomePage() {
       const data = await res.json();
       if (res.ok && data.photos && data.photos.length > 0) {
         setGalleryPhotos(data.photos);
+        setSelectedMatchInfo({
+          detail: pendingGalleryInfo.detail || "",
+          score: pendingGalleryInfo.score || "",
+          category: pendingGalleryInfo.categoryDisplayName || ""
+        });
         setOpenLightboxCode(unifiedCode);
         setActivePhotoIndex(0);
       } else {
@@ -736,11 +764,6 @@ export default function HomePage() {
             <p style={{ margin: "0 0 2rem 0", color: "var(--text-secondary)", lineHeight: "1.6" }}>
               Foto untuk pertandingan ini belum tersedia. <br/>Harap bersabar atau hubungi <strong>Mas Hadi</strong> (Admin) untuk pembaruan.
             </p>
-            {lastSearchId && (
-              <p style={{ fontSize: "0.7rem", color: "var(--text-muted)", opacity: 0.6, marginBottom: "1rem" }}>
-                Search ID: {lastSearchId}
-              </p>
-            )}
             <button 
               className="save-btn" 
               onClick={() => setShowEmptyGalleryPrompt(false)}
@@ -808,7 +831,16 @@ export default function HomePage() {
         <div className="lightbox-overlay" onClick={() => setOpenLightboxCode(null)}>
           <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
             <div className="lightbox-header">
-              <div className="lightbox-title">📸 Galeri Pertandingan ({openLightboxCode})</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                <div className="lightbox-title" style={{ fontSize: "1.1rem" }}>📸 Galeri Pertandingan ({openLightboxCode})</div>
+                {selectedMatchInfo && (
+                  <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", background: "rgba(255,255,255,0.05)", padding: "0.5rem 0.75rem", borderRadius: "8px", marginTop: "0.25rem" }}>
+                    <div style={{ color: "var(--accent)", fontWeight: 700, marginBottom: "2px" }}>{selectedMatchInfo.category}</div>
+                    <div style={{ color: "var(--text-primary)", fontWeight: 600 }}>{selectedMatchInfo.detail}</div>
+                    <div style={{ fontSize: "0.9rem", color: "var(--accent)" }}>Skor: {selectedMatchInfo.score}</div>
+                  </div>
+                )}
+              </div>
               <button className="lightbox-close" onClick={() => setOpenLightboxCode(null)}>✕</button>
             </div>
             
