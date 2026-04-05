@@ -123,7 +123,7 @@ function TeamRow({
   );
 }
 
-function MatchCard({ match, categoryName, roundClass, allMatches, isFirstRound, onCardClick }: { match: Match; categoryName: string; roundClass: string; allMatches: Match[]; isFirstRound: boolean; onCardClick?: (code: string, cat: string, info: { detail: string; score: string; categoryName: string }) => void }) {
+function MatchCard({ match, categoryName, roundClass, allMatches, isFirstRound, onCardClick }: { match: Match; categoryName: string; roundClass: string; allMatches: Match[]; isFirstRound: boolean; onCardClick?: (code: string, cat: string, info: { match: Match | ScheduleMatch; categoryDisplayName: string }) => void }) {
   const prev1 = allMatches.find(m => m.nextMatchCode === match.matchCode && m.nextMatchSlot === 1);
   const prev2 = allMatches.find(m => m.nextMatchCode === match.matchCode && m.nextMatchSlot === 2);
 
@@ -138,9 +138,7 @@ function MatchCard({ match, categoryName, roundClass, allMatches, isFirstRound, 
       className={`match-card ${roundClass} ${slotClass} ${firstRoundClass} ${match.isBye ? "bye-match" : ""} ${match.status === "completed" ? "completed" : ""} ${onCardClick && match.status === "completed" && !match.isBye ? "clickable" : ""}`}
       onClick={() => { 
         if (match.status === "completed" && !match.isBye && onCardClick) {
-          const detail = `${match.team1Name || "—"} vs ${match.team2Name || "—"}`;
-          const score = (match.scoreTeam1 || "-") + " : " + (match.scoreTeam2 || "-");
-          onCardClick(match.matchCode, categoryName, { detail, score, categoryName });
+          onCardClick(match.matchCode, categoryName, { match, categoryDisplayName: categoryName });
         }
       }}
     >
@@ -212,7 +210,7 @@ function SchedTeamRow({ player1Raw, player2Raw, teamNumber, isWinner, isComplete
 }
 
 /* ============== Schedule Card ============== */
-function ScheduleCard({ match, catDisplayName, onCardClick }: { match: ScheduleMatch; catDisplayName: string; onCardClick?: (code: string, cat: string, info: { detail: string; score: string; categoryName: string }) => void }) {
+function ScheduleCard({ match, catDisplayName, onCardClick }: { match: ScheduleMatch; catDisplayName: string; onCardClick?: (code: string, cat: string, info: { match: Match | ScheduleMatch; categoryDisplayName: string }) => void }) {
   const isCompleted = match.status === "completed";
   const styles = getCategoryStyles(match.category);
 
@@ -221,9 +219,7 @@ function ScheduleCard({ match, catDisplayName, onCardClick }: { match: ScheduleM
       className={`schedule-card ${isCompleted ? "completed" : ""} ${isCompleted && onCardClick ? "clickable" : ""}`}
       onClick={() => { 
         if (isCompleted && onCardClick) {
-          const detail = `${match.team1Player1}${match.team1Player2 ? " & " + match.team1Player2 : ""} vs ${match.team2Player1}${match.team2Player2 ? " & " + match.team2Player2 : ""}`;
-          const score = (match.scoreTeam1 || "-") + " : " + (match.scoreTeam2 || "-");
-          onCardClick(match.gameNumber, match.category, { detail, score, categoryName: catDisplayName }); 
+          onCardClick(match.gameNumber, match.category, { match, categoryDisplayName: catDisplayName }); 
         }
       }}
     >
@@ -269,24 +265,22 @@ export default function HomePage() {
   const [pendingGalleryInfo, setPendingGalleryInfo] = useState<{
     code: string; 
     cat: string;
-    detail?: string;
-    score?: string;
-    categoryDisplayName?: string;
+    match: Match | ScheduleMatch;
+    categoryDisplayName: string;
   } | null>(null);
   const [showEmptyGalleryPrompt, setShowEmptyGalleryPrompt] = useState(false);
   const [openLightboxCode, setOpenLightboxCode] = useState<string | null>(null);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
-  const [selectedMatchInfo, setSelectedMatchInfo] = useState<{detail: string; score: string; category: string} | null>(null);
+  const [selectedMatchInfo, setSelectedMatchInfo] = useState<{match: Match | ScheduleMatch; categoryDisplayName: string} | null>(null);
 
-  const handleCardClick = (rawCode: string, catName: string, info?: { detail: string; score: string; categoryName: string }) => {
+  const handleCardClick = (rawCode: string, catName: string, info: { match: Match | ScheduleMatch; categoryDisplayName: string }) => {
     const codeNumber = rawCode.replace(/\D/g, "");
     if (!codeNumber) return;
     setPendingGalleryInfo({ 
       code: codeNumber, 
       cat: catName,
-      detail: info?.detail || "",
-      score: info?.score || "",
-      categoryDisplayName: info?.categoryName || catName
+      match: info.match,
+      categoryDisplayName: info.categoryDisplayName
     });
   };
 
@@ -303,9 +297,8 @@ export default function HomePage() {
       if (res.ok && data.photos && data.photos.length > 0) {
         setGalleryPhotos(data.photos);
         setSelectedMatchInfo({
-          detail: pendingGalleryInfo.detail || "",
-          score: pendingGalleryInfo.score || "",
-          category: pendingGalleryInfo.categoryDisplayName || ""
+          match: pendingGalleryInfo.match,
+          categoryDisplayName: pendingGalleryInfo.categoryDisplayName
         });
         setOpenLightboxCode(unifiedCode);
         setActivePhotoIndex(0);
@@ -831,14 +824,67 @@ export default function HomePage() {
         <div className="lightbox-overlay" onClick={() => setOpenLightboxCode(null)}>
           <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
             <div className="lightbox-header">
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                <div className="lightbox-title" style={{ fontSize: "1.1rem" }}>📸 Galeri Pertandingan ({openLightboxCode})</div>
+              <div className="lightbox-match-summary">
                 {selectedMatchInfo && (
-                  <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", background: "rgba(255,255,255,0.05)", padding: "0.5rem 0.75rem", borderRadius: "8px", marginTop: "0.25rem" }}>
-                    <div style={{ color: "var(--accent)", fontWeight: 700, marginBottom: "2px" }}>{selectedMatchInfo.category}</div>
-                    <div style={{ color: "var(--text-primary)", fontWeight: 600 }}>{selectedMatchInfo.detail}</div>
-                    <div style={{ fontSize: "0.9rem", color: "var(--accent)" }}>Skor: {selectedMatchInfo.score}</div>
-                  </div>
+                  <>
+                    <div className="lightbox-match-badge" style={{ 
+                      backgroundColor: getCategoryStyles(selectedMatchInfo.categoryDisplayName).background, 
+                      color: getCategoryStyles(selectedMatchInfo.categoryDisplayName).color,
+                      border: `1px solid ${getCategoryStyles(selectedMatchInfo.categoryDisplayName).border}`
+                    }}>
+                      {selectedMatchInfo.categoryDisplayName} ({openLightboxCode})
+                    </div>
+                    
+                    <div className="lightbox-match-details">
+                      {"categoryId" in selectedMatchInfo.match ? (
+                        // Bracket Match
+                        <div className="lightbox-match-rows">
+                          <TeamRow
+                            name={selectedMatchInfo.match.team1Name}
+                            club={selectedMatchInfo.match.team1Club}
+                            seed={selectedMatchInfo.match.team1Seed}
+                            number={selectedMatchInfo.match.team1Number}
+                            score={selectedMatchInfo.match.scoreTeam1}
+                            isWinner={selectedMatchInfo.match.winner === 1}
+                            isBye={selectedMatchInfo.match.isBye}
+                            teamSlot={1}
+                          />
+                          <div className="team-divider" style={{ opacity: 0.2 }} />
+                          <TeamRow
+                            name={selectedMatchInfo.match.team2Name}
+                            club={selectedMatchInfo.match.team2Club}
+                            seed={selectedMatchInfo.match.team2Seed}
+                            number={selectedMatchInfo.match.team2Number}
+                            score={selectedMatchInfo.match.scoreTeam2}
+                            isWinner={selectedMatchInfo.match.winner === 2}
+                            isBye={selectedMatchInfo.match.isBye}
+                            teamSlot={2}
+                          />
+                        </div>
+                      ) : (
+                        // Schedule Match
+                        <div className="lightbox-match-rows">
+                          <SchedTeamRow 
+                            player1Raw={selectedMatchInfo.match.team1Player1} 
+                            player2Raw={selectedMatchInfo.match.team1Player2} 
+                            teamNumber={selectedMatchInfo.match.team1Number} 
+                            isWinner={selectedMatchInfo.match.winner === 1} 
+                            isCompleted={true} 
+                            score={selectedMatchInfo.match.scoreTeam1} 
+                          />
+                          <div className="team-divider" style={{ opacity: 0.2 }} />
+                          <SchedTeamRow 
+                            player1Raw={selectedMatchInfo.match.team2Player1} 
+                            player2Raw={selectedMatchInfo.match.team2Player2} 
+                            teamNumber={selectedMatchInfo.match.team2Number} 
+                            isWinner={selectedMatchInfo.match.winner === 2} 
+                            isCompleted={true} 
+                            score={selectedMatchInfo.match.scoreTeam2} 
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
               <button className="lightbox-close" onClick={() => setOpenLightboxCode(null)}>✕</button>

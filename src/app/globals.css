@@ -2004,16 +2004,45 @@ body {
 .lightbox-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-  background: rgba(255, 255, 255, 0.05);
+  align-items: flex-start;
+  padding: 1.25rem;
+  background: rgba(255, 255, 255, 0.03);
   border-bottom: 1px solid var(--border);
+  gap: 1.5rem;
 }
 
-.lightbox-title {
-  font-family: var(--font-display);
-  font-weight: 700;
-  color: var(--text-primary);
+.lightbox-match-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.lightbox-match-badge {
+  display: inline-block;
+  padding: 0.35rem 0.85rem;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  width: fit-content;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.lightbox-match-details {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+  max-width: 320px;
+  backdrop-filter: blur(4px);
+}
+
+.lightbox-match-rows {
+  display: flex;
+  flex-direction: column;
 }
 
 .lightbox-close {
