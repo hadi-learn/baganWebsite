@@ -485,7 +485,7 @@ export default function AdminPage() {
           if (res.ok) {
             successCount++;
           } else {
-            const errData = await res.json();
+            const errData = await res.json().catch(() => ({ error: "Server Error (Non-JSON)" }));
             errors.push(`${file.name}: ${errData.error || "Gagal"}`);
           }
         } catch (innerErr: any) {
@@ -499,7 +499,8 @@ export default function AdminPage() {
         setGalleryMsg(`⚠️ Berhasil: ${successCount}. Gagal: ${errors.length}. Periksa koneksi.`);
         if (errors.length > 0) console.error("Upload Errors:", errors);
       } else {
-        setGalleryMsg(`❌ Gagal mengunggah foto. Periksa ukuran file.`);
+        const errorDetail = errors.length > 0 ? ` (${errors[0].split(':').slice(1).join(':').trim()})` : "";
+        setGalleryMsg(`❌ Gagal: ${errorDetail || "Periksa koneksi/ukuran file"}`);
       }
       loadGallery(galleryMatchCode);
     } catch (err) {

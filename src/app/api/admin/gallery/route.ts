@@ -5,12 +5,17 @@ import { eq, inArray } from "drizzle-orm";
 import cloudinary from "@/lib/cloudinary";
 
 // Helper to upload buffer to Cloudinary
-function uploadToCloudinary(buffer: Uint8Array, folder: string): Promise<any> {
+function uploadToCloudinary(buffer: Buffer, folder: string): Promise<any> {
   return new Promise((resolve, reject) => {
+    console.log(`[Cloudinary] Starting upload stream to folder: ${folder}...`);
     const uploadStream = cloudinary.uploader.upload_stream(
       { folder },
       (error, result) => {
-        if (error) return reject(error);
+        if (error) {
+          console.error("[Cloudinary] Upload Error:", error);
+          return reject(error);
+        }
+        console.log("[Cloudinary] Upload Success:", result?.public_id);
         resolve(result);
       }
     );
@@ -30,14 +35,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "File and matchCode are required" }, { status: 400 });
     }
 
+    console.log(`[Gallery API] Received upload request for match: ${matchCode}, file: ${file.name} (${file.size} bytes)`);
+
     const arrayBuffer = await file.arrayBuffer();
-    const buffer = new Uint8Array(arrayBuffer);
+    const buffer = Buffer.from(arrayBuffer);
     
     // Use user-requested specific folder
     const folder = "pakpelecup_gallery";
     
     // Upload to cloudinary
     const uploadResult = await uploadToCloudinary(buffer, folder);
+    console.log("[Gallery API] Cloudinary upload completed, saving to database...");
 
     // Get current max sort_order for this match
     const existingPhotos = await db.select().from(matchPhotos).where(eq(matchPhotos.matchCode, matchCode));
@@ -50,6 +58,7 @@ export async function POST(request: Request) {
       url: uploadResult.secure_url,
       sortOrder: maxSortOrder + 1,
     });
+    console.log("[Gallery API] Database insert successful.");
 
     return NextResponse.json({ success: true, url: uploadResult.secure_url });
   } catch (error: any) {
