@@ -439,7 +439,6 @@ export default function AdminPage() {
     setGalleryMatchCode(matchCode);
     setShowGalleryAdd(true);
     setGalleryLoading(true);
-    setGalleryMsg(null);
     try {
       const res = await fetch(`/api/gallery?match=${encodeURIComponent(matchCode)}`);
       const data = await res.json();
@@ -462,6 +461,7 @@ export default function AdminPage() {
       return;
     }
     
+    setGalleryMsg(null);
     setGalleryUploading(true);
     const filesArray = Array.from(e.target.files);
     const totalFiles = filesArray.length;
@@ -514,6 +514,7 @@ export default function AdminPage() {
   
   const handleGalleryDelete = async (id: number) => {
     if (!confirm("Hapus foto ini?")) return;
+    setGalleryMsg(null);
     try {
       setGalleryMsg("⏳ Menghapus foto...");
       const res = await fetch("/api/admin/gallery", {
