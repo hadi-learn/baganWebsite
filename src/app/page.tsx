@@ -258,6 +258,7 @@ export default function HomePage() {
   const [showEmptyGalleryPrompt, setShowEmptyGalleryPrompt] = useState(false);
   const [openLightboxCode, setOpenLightboxCode] = useState<string | null>(null);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
+  const [lastSearchId, setLastSearchId] = useState<string | null>(null);
 
   const handleCardClick = (rawCode: string, catName: string) => {
     const codeNumber = rawCode.replace(/\D/g, "");
@@ -268,6 +269,7 @@ export default function HomePage() {
   const confirmFetchGallery = async () => {
     if (!pendingGalleryInfo) return;
     const unifiedCode = getUnifiedMatchCode(pendingGalleryInfo.cat, pendingGalleryInfo.code);
+    setLastSearchId(unifiedCode);
     setPendingGalleryInfo(null);
     
     setGalleryLoading(true);
@@ -734,6 +736,11 @@ export default function HomePage() {
             <p style={{ margin: "0 0 2rem 0", color: "var(--text-secondary)", lineHeight: "1.6" }}>
               Foto untuk pertandingan ini belum tersedia. <br/>Harap bersabar atau hubungi <strong>Mas Hadi</strong> (Admin) untuk pembaruan.
             </p>
+            {lastSearchId && (
+              <p style={{ fontSize: "0.7rem", color: "var(--text-muted)", opacity: 0.6, marginBottom: "1rem" }}>
+                Search ID: {lastSearchId}
+              </p>
+            )}
             <button 
               className="save-btn" 
               onClick={() => setShowEmptyGalleryPrompt(false)}
