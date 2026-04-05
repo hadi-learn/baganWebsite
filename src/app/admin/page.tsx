@@ -486,7 +486,8 @@ export default function AdminPage() {
             successCount++;
           } else {
             const errData = await res.json().catch(() => ({ error: "Server Error (Non-JSON)" }));
-            errors.push(`${file.name}: ${errData.error || "Gagal"}`);
+            const msg = errData.step ? `[${errData.step}] ${errData.error}` : errData.error;
+            errors.push(`${file.name}: ${msg || "Gagal"}`);
           }
         } catch (innerErr: any) {
           errors.push(`${file.name}: ${innerErr.message || "Network Error"}`);

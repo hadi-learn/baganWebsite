@@ -25,7 +25,15 @@ function uploadToCloudinary(buffer: Buffer, folder: string): Promise<any> {
 
 // POST: Upload a single photo
 export async function POST(request: Request) {
+  let step = "initialization";
   try {
+    // 0. Verify Config
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+      console.error("[Gallery API] Missing Cloudinary environment variables");
+      return NextResponse.json({ error: "Server Configuration Error (Cloudinary)" }, { status: 500 });
+    }
+
+    step = "parsing form data";
     const formData = await request.formData();
     const file = formData.get("file") as File;
     const rawMatchCode = formData.get("matchCode") as string;
@@ -37,33 +45,54 @@ export async function POST(request: Request) {
 
     console.log(`[Gallery API] Received upload request for match: ${matchCode}, file: ${file.name} (${file.size} bytes)`);
 
+    step = "processing binary data";
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     
     // Use user-requested specific folder
     const folder = "pakpelecup_gallery";
     
+    step = "uploading to cloudinary";
     // Upload to cloudinary
     const uploadResult = await uploadToCloudinary(buffer, folder);
     console.log("[Gallery API] Cloudinary upload completed, saving to database...");
 
+    step = "fetching existing photos from db";
     // Get current max sort_order for this match
-    const existingPhotos = await db.select().from(matchPhotos).where(eq(matchPhotos.matchCode, matchCode));
+    // Wrap DB call in try/catch to isolate
+    let existingPhotos;
+    try {
+      existingPhotos = await db.select().from(matchPhotos).where(eq(matchPhotos.matchCode, matchCode));
+    } catch (dbErr: any) {
+      console.error("[Gallery API] DB Select Error:", dbErr);
+      throw new Error(`Database Select Failed: ${dbErr.message}`);
+    }
+
     const maxSortOrder = existingPhotos.length > 0 ? Math.max(...existingPhotos.map(p => p.sortOrder)) : -1;
 
+    step = "inserting into database";
     // Save to DB
-    await db.insert(matchPhotos).values({
-      matchCode,
-      cloudinaryPublicId: uploadResult.public_id,
-      url: uploadResult.secure_url,
-      sortOrder: maxSortOrder + 1,
-    });
+    try {
+      await db.insert(matchPhotos).values({
+        matchCode,
+        cloudinaryPublicId: uploadResult.public_id,
+        url: uploadResult.secure_url,
+        sortOrder: maxSortOrder + 1,
+      });
+    } catch (insertErr: any) {
+      console.error("[Gallery API] DB Insert Error:", insertErr);
+      throw new Error(`Database Insert Failed: ${insertErr.message}`);
+    }
+
     console.log("[Gallery API] Database insert successful.");
 
     return NextResponse.json({ success: true, url: uploadResult.secure_url });
   } catch (error: any) {
-    console.error("Gallery Upload Error:", error);
-    return NextResponse.json({ error: error.message || "Upload failed" }, { status: 500 });
+    console.error(`Gallery Upload Error at step [${step}]:`, error);
+    return NextResponse.json({ 
+      error: error.message || "Upload failed",
+      step: step 
+    }, { status: 500 });
   }
 }
 
