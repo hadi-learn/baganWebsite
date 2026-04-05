@@ -19,6 +19,7 @@ function normalizeCategoryName(name) {
   return name.toLowerCase()
     .replace(/\s+/g, "")
     .replace(/\d+tim/g, "")
+    .replace(/[^a-z0-9]/g, "")
     .trim();
 }
 

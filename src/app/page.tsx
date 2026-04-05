@@ -213,7 +213,7 @@ function ScheduleCard({ match, catDisplayName, onCardClick }: { match: ScheduleM
   return (
     <div 
       className={`schedule-card ${isCompleted ? "completed" : ""} ${isCompleted && onCardClick ? "clickable" : ""}`}
-      onClick={() => { if (isCompleted && onCardClick) onCardClick(match.gameNumber, catDisplayName); }}
+      onClick={() => { if (isCompleted && onCardClick) onCardClick(match.gameNumber, match.category); }}
     >
       <div className="sched-time-col">
         <span className="sched-time">{match.time}</span>
