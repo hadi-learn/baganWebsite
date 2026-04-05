@@ -61,3 +61,13 @@ export function normalizeCategoryName(name: string | null): string {
     .replace(/\d+tim/g, "") // Remove "64Tim", "32Tim" etc.
     .trim();
 }
+
+/**
+ * Common format for photo gallery match codes.
+ * Ensures consistent naming between Admin and Public views.
+ */
+export function getUnifiedMatchCode(category: string, matchCode: string): string {
+  const normCat = normalizeCategoryName(category);
+  const normCode = normalizeMatchCode(matchCode);
+  return `${normCat}-${normCode}`;
+}

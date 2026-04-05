@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { getCategoryStyles } from "@/lib/colors";
+import { getUnifiedMatchCode } from "@/lib/playerUtils";
 import { parsePlayerInfo } from "@/lib/playerUtils";
 
 interface Match {
@@ -266,7 +267,7 @@ export default function HomePage() {
 
   const confirmFetchGallery = async () => {
     if (!pendingGalleryInfo) return;
-    const unifiedCode = `${pendingGalleryInfo.cat}-${pendingGalleryInfo.code}`;
+    const unifiedCode = getUnifiedMatchCode(pendingGalleryInfo.cat, pendingGalleryInfo.code);
     setPendingGalleryInfo(null);
     
     setGalleryLoading(true);

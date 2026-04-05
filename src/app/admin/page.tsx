@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getCategoryStyles } from "@/lib/colors";
+import { getUnifiedMatchCode, normalizeCategoryName, normalizeMatchCode } from "@/lib/playerUtils";
 
 interface Category {
   id: number;
@@ -1098,17 +1099,15 @@ export default function AdminPage() {
                       
                       // Try find in schedule matches first
                       const sm = schedMatches.find(m => {
-                        const codeNum = m.gameNumber.replace(/\D/g, "");
-                        const normalizedTarget = `${m.category?.trim()}-${codeNum}`.toLowerCase();
+                        const normalizedTarget = getUnifiedMatchCode(m.category || "", m.gameNumber).toLowerCase();
                         return normalizedTarget === candidateCode;
                       });
                       if (sm) return { ...s, dayDate: sm.dayDate, category: sm.category, info: sm };
 
                       // Try find in bracket matches
                       const gm = matches.find(m => {
-                        const codeNum = m.matchCode.replace(/\D/g, "");
                         const categoryName = categories.find(c => c.id === m.categoryId)?.name || "Unknown";
-                        const normalizedTarget = `${categoryName.trim()}-${codeNum}`.toLowerCase();
+                        const normalizedTarget = getUnifiedMatchCode(categoryName, m.matchCode).toLowerCase();
                         return normalizedTarget === candidateCode;
                       });
                       if (gm) {
@@ -1333,8 +1332,8 @@ export default function AdminPage() {
                 {editingMatch.status === "completed" && (
                   <button 
                     onClick={() => {
-                      const codeNum = editingMatch.matchCode.replace(/\D/g, "");
-                      const unified = `${activeCat?.name || "Unknown"}-${codeNum}`;
+                      const catName = activeCat?.name || "Unknown";
+                      const unified = getUnifiedMatchCode(catName, editingMatch.matchCode);
                       handleGalleryAddShortcut(unified);
                     }}
                     style={{ background: "rgba(59,130,246,0.15)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.3)", padding: "0.3rem 0.6rem", borderRadius: "6px", fontSize: "0.75rem", marginRight: "1rem", cursor: "pointer", fontWeight: 600 }}
@@ -1387,8 +1386,7 @@ export default function AdminPage() {
                 {editingSchedMatch.status === "completed" && (
                   <button 
                     onClick={() => {
-                      const codeNum = editingSchedMatch.gameNumber.replace(/\D/g, "");
-                      const unified = `${editingSchedMatch.category}-${codeNum}`;
+                      const unified = getUnifiedMatchCode(editingSchedMatch.category, editingSchedMatch.gameNumber);
                       handleGalleryAddShortcut(unified);
                     }}
                     style={{ background: "rgba(59,130,246,0.15)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.3)", padding: "0.3rem 0.6rem", borderRadius: "6px", fontSize: "0.75rem", marginRight: "1rem", cursor: "pointer", fontWeight: 600 }}
