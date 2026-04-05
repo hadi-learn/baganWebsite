@@ -433,12 +433,13 @@ export default function AdminPage() {
     loadGallery(unifiedCode);
   };
 
-  const loadGallery = async (rawCode: string) => {
+  const loadGallery = async (rawCode: string, skipClearMsg = false) => {
     if (!rawCode) return;
     const matchCode = rawCode.trim();
     setGalleryMatchCode(matchCode);
     setShowGalleryAdd(true);
     setGalleryLoading(true);
+    if (!skipClearMsg) setGalleryMsg(null);
     try {
       const res = await fetch(`/api/gallery?match=${encodeURIComponent(matchCode)}`);
       const data = await res.json();
@@ -503,7 +504,12 @@ export default function AdminPage() {
         const errorDetail = errors.length > 0 ? ` (${errors[0].split(':').slice(1).join(':').trim()})` : "";
         setGalleryMsg(`❌ Gagal: ${errorDetail || "Periksa koneksi/ukuran file"}`);
       }
-      loadGallery(galleryMatchCode);
+      loadGallery(galleryMatchCode, true);
+      
+      // Auto-clear success message after 5s
+      if (successCount === totalFiles) {
+        setTimeout(() => setGalleryMsg(null), 5000);
+      }
     } catch (err) {
       setGalleryMsg("❌ Terjadi kesalahan fatal saat mengunggah.");
     } finally {
@@ -1210,9 +1216,16 @@ export default function AdminPage() {
                     background: galleryMsg.startsWith("❌") ? "rgba(239, 68, 68, 0.1)" : 
                                (galleryMsg.startsWith("⏳") ? "rgba(245, 158, 11, 0.1)" : "rgba(34, 197, 94, 0.1)"),
                     color: galleryMsg.startsWith("❌") ? "#fca5a5" : 
-                          (galleryMsg.startsWith("⏳") ? "#fcd34d" : "#86efac")
+                          (galleryMsg.startsWith("⏳") ? "#fcd34d" : "#86efac"),
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center"
                   }}>
-                    {galleryMsg}
+                    <span>{galleryMsg}</span>
+                    <button 
+                      onClick={() => setGalleryMsg(null)} 
+                      style={{ background: "transparent", border: "none", color: "inherit", cursor: "pointer", padding: "0 0.5rem", fontSize: "1.1rem" }}
+                    >✕</button>
                   </div>
                 )}
 
