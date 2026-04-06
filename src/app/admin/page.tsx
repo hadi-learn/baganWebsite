@@ -78,7 +78,7 @@ const ROUND_LABELS: Record<string, string> = {
 export default function AdminPage() {
   const router = useRouter();
   const [authenticated, setAuthenticated] = useState(false);
-  const [mainTab, setMainTab] = useState<"matches" | "settings" | "schedule" | "gallery">("matches");
+  const [mainTab, setMainTab] = useState<"matches" | "settings" | "schedule" | "gallery" | "general-gallery">("matches");
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [activeCategory, setActiveCategory] = useState<number | null>(null);
@@ -115,6 +115,13 @@ export default function AdminPage() {
   const [gallerySummary, setGallerySummary] = useState<any[]>([]);
   const [gallerySummaryLoading, setGallerySummaryLoading] = useState(false);
   const [showGalleryAdd, setShowGalleryAdd] = useState(false);
+
+  // General Gallery State
+  const [genGalleryDay, setGenGalleryDay] = useState("");
+  const [genGalleryPhotos, setGenGalleryPhotos] = useState<any[]>([]);
+  const [genGalleryLoading, setGenGalleryLoading] = useState(false);
+  const [genGalleryUploading, setGenGalleryUploading] = useState(false);
+  const [genGalleryMsg, setGenGalleryMsg] = useState<string | null>(null);
 
   // Check auth
   useEffect(() => {
@@ -338,7 +345,7 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
-    if (authenticated && mainTab === "schedule") {
+    if (authenticated && (mainTab === "schedule" || mainTab === "general-gallery")) {
       loadScheduleMatches();
     }
   }, [authenticated, mainTab, loadScheduleMatches]);
@@ -597,6 +604,113 @@ export default function AdminPage() {
     }
   };
 
+  // --- General Gallery Functions ---
+  const loadGenGallery = async (day: string) => {
+    if (!day) return;
+    setGenGalleryDay(day);
+    setGenGalleryLoading(true);
+    setGenGalleryMsg(null);
+    try {
+      const res = await fetch(`/api/gallery?match=${encodeURIComponent(day)}&type=general`);
+      const data = await res.json();
+      if (res.ok) {
+        setGenGalleryPhotos(data.photos || []);
+      } else {
+        setGenGalleryMsg(`❌ Gagal: ${data.error}`);
+      }
+    } catch {
+      setGenGalleryMsg("❌ Gagal memuat galeri");
+    } finally {
+      setGenGalleryLoading(false);
+    }
+  };
+
+  const handleGenGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    if (!genGalleryDay) {
+      setGenGalleryMsg("❌ Pilih Hari terlebih dahulu!");
+      return;
+    }
+    
+    setGenGalleryMsg(null);
+    setGenGalleryUploading(true);
+    const filesArray = Array.from(e.target.files);
+    const totalFiles = filesArray.length;
+    let successCount = 0;
+    
+    try {
+      for (let i = 0; i < totalFiles; i++) {
+        setGenGalleryMsg(`⏳ Mengupload foto ${i + 1} dari ${totalFiles}...`);
+        const file = filesArray[i];
+        
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("matchCode", genGalleryDay);
+        formData.append("type", "general");
+        
+        const res = await fetch("/api/admin/gallery", {
+          method: "POST",
+          body: formData,
+        });
+        if (res.ok) successCount++;
+      }
+      
+      if (successCount === totalFiles) {
+        setGenGalleryMsg(`✅ ${successCount} foto berhasil diupload!`);
+      } else {
+        setGenGalleryMsg(`⚠️ Berhasil: ${successCount}. Gagal: ${totalFiles - successCount}.`);
+      }
+      loadGenGallery(genGalleryDay);
+    } catch (err) {
+      setGenGalleryMsg("❌ Terjadi kesalahan saat mengunggah.");
+    } finally {
+      setGenGalleryUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleGenGalleryDelete = async (id: number) => {
+    if (!confirm("Hapus foto ini?")) return;
+    try {
+      setGenGalleryMsg("⏳ Menghapus...");
+      const res = await fetch("/api/admin/gallery", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) {
+        setGenGalleryMsg("✅ Berhasil");
+        loadGenGallery(genGalleryDay);
+      }
+    } catch {
+      setGenGalleryMsg("❌ Gagal");
+    }
+  };
+
+  const handleGenGalleryMove = async (index: number, direction: 'up' | 'down') => {
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === genGalleryPhotos.length - 1) return;
+    
+    const newPhotos = [...genGalleryPhotos];
+    const targetIdx = direction === 'up' ? index - 1 : index + 1;
+    const temp = newPhotos[index];
+    newPhotos[index] = newPhotos[targetIdx];
+    newPhotos[targetIdx] = temp;
+    
+    newPhotos.forEach((p, i) => p.sortOrder = i);
+    setGenGalleryPhotos(newPhotos);
+    
+    try {
+      await fetch("/api/admin/gallery", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates: newPhotos.map(p => ({ id: p.id, sortOrder: p.sortOrder })) }),
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   return (
     <div className="admin-layout">
       {/* Sidebar */}
@@ -627,7 +741,13 @@ export default function AdminPage() {
             className={`nav-btn ${mainTab === "gallery" ? "active" : ""}`}
             onClick={() => setMainTab("gallery")}
           >
-            📸 Galeri Foto
+            📸 Galeri Pertandingan
+          </button>
+          <button
+            className={`nav-btn ${mainTab === "general-gallery" ? "active" : ""}`}
+            onClick={() => setMainTab("general-gallery")}
+          >
+            📸 Galeri Suasana
           </button>
         </nav>
         <div className="admin-sidebar-footer">
@@ -1184,20 +1304,20 @@ export default function AdminPage() {
                       >
                         <option value="">-- Pilih Kategori --</option>
                         {categories.map(c => (
-                          <option key={c.id} value={c.name}>{c.name}</option>
+                          <option key={c.id} value={normalizeCategoryName(c.name)}>{c.name}</option>
                         ))}
                       </select>
                     </div>
                     <div className="form-group" style={{ flex: 1, minWidth: "100px", marginBottom: 0 }}>
                       <label>Nomor Urut / Game</label>
                       <input 
-                        type="number" 
+                        type="text" 
                         value={galleryMatchCode.includes('-') ? galleryMatchCode.substring(galleryMatchCode.lastIndexOf('-') + 1) : galleryMatchCode} 
                         onChange={(e) => {
                           const catPart = galleryMatchCode.includes('-') ? galleryMatchCode.substring(0, galleryMatchCode.lastIndexOf('-')) : "";
                           setGalleryMatchCode(`${catPart ? catPart + '-' : ''}${e.target.value}`);
                         }} 
-                        placeholder="Cth: 1" 
+                        placeholder="Cth: 1 atau W1" 
                       />
                     </div>
                     <button className="save-btn" onClick={() => loadGallery(galleryMatchCode)}>
@@ -1310,6 +1430,14 @@ export default function AdminPage() {
                               style={{ background: "transparent", border: "none", color: "#fca5a5", cursor: "pointer", fontSize: "0.9rem" }}
                               title="Hapus"
                             >🗑️</button>
+                            <a 
+                              href={photo.url.replace('/upload/', '/upload/fl_attachment/')} 
+                              download={`Photo_${index + 1}.jpg`}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ background: "transparent", border: "none", color: "#fff", cursor: "pointer", fontSize: "0.9rem", textDecoration: "none" }}
+                              title="Download"
+                            >⬇️</a>
                           </div>
                         </div>
                       ))}
@@ -1317,6 +1445,175 @@ export default function AdminPage() {
                   )}
                 </div>
               </>
+            )}
+          </div>
+        )}
+
+        {mainTab === "general-gallery" && (
+          <div className="admin-content-container">
+            <div className="admin-sidebar-header" style={{ marginBottom: "1.5rem" }}>
+              <h2 style={{ margin: 0 }}>📸 Kelola Galeri Suasana (Penonton / Panitia)</h2>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.5rem' }}>
+                Gunakan tab ini untuk mengunggah foto-foto suasana di luar pertandingan. Foto dikelompokkan berdasarkan Hari Pertandingan.
+              </p>
+            </div>
+
+            {/* Day Selector */}
+            <div style={{ marginBottom: '2rem' }}>
+              <h3 style={{ color: 'var(--text-primary)', fontSize: '1rem', marginBottom: '1rem' }}>📅 Pilih Hari Pertandingan</h3>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                {schedMatches.length > 0 ? (
+                  Array.from(new Set(schedMatches.map(m => m.dayDate))).map((day, idx) => (
+                    <button 
+                      key={day} 
+                      onClick={() => loadGenGallery(day)} 
+                      style={{ 
+                        padding: '0.6rem 1.2rem', 
+                        borderRadius: '10px', 
+                        border: genGalleryDay === day ? '2px solid var(--accent)' : '1px solid var(--glass-border)', 
+                        background: genGalleryDay === day ? 'rgba(99,102,241,0.2)' : 'var(--glass-bg)', 
+                        color: genGalleryDay === day ? '#fff' : 'var(--text-secondary)', 
+                        cursor: 'pointer', 
+                        fontSize: '0.85rem', 
+                        fontWeight: 700,
+                        transition: 'all 0.3s ease'
+                      }}
+                    >
+                      H{idx+1}: {day}
+                    </button>
+                  ))
+                ) : (
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic' }}>
+                    Belum ada data jadwal. Silakan import jadwal terlebih dahulu di menu 📅 Jadwal.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {genGalleryDay && (
+              <div className="admin-card">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+                  <div>
+                    <h3 style={{ color: "var(--text-primary)", margin: 0 }}>🖼️ Daftar Foto: {genGalleryDay}</h3>
+                    <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", marginTop: "0.25rem" }}>{genGalleryPhotos.length} foto tersimpan</p>
+                  </div>
+                  
+                  <label 
+                    className="save-btn" 
+                    style={{ 
+                      background: "var(--accent)", 
+                      cursor: genGalleryUploading ? "not-allowed" : "pointer",
+                      opacity: genGalleryUploading ? 0.6 : 1,
+                      display: "inline-block",
+                      padding: "0.6rem 1.25rem",
+                      borderRadius: "8px",
+                      fontSize: "0.95rem",
+                      fontWeight: 700
+                    }}
+                  >
+                    {genGalleryUploading ? "⏳ Uploading..." : "➕ Tambah Foto Baru"}
+                    <input 
+                      type="file" 
+                      multiple 
+                      accept="image/*" 
+                      onChange={handleGenGalleryUpload}
+                      disabled={genGalleryUploading}
+                      style={{ display: "none" }}
+                    />
+                  </label>
+                </div>
+
+                {genGalleryMsg && (
+                  <div style={{ 
+                    marginBottom: "1.5rem", padding: "0.85rem 1.25rem", borderRadius: "10px", fontSize: "0.9rem",
+                    background: genGalleryMsg.startsWith("❌") ? "rgba(239, 68, 68, 0.15)" : 
+                               (genGalleryMsg.startsWith("⏳") ? "rgba(245, 158, 11, 0.15)" : "rgba(34, 197, 94, 0.15)"),
+                    color: genGalleryMsg.startsWith("❌") ? "#fca5a5" : 
+                          (genGalleryMsg.startsWith("⏳") ? "#fcd34d" : "#86efac"),
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    border: `1px solid ${genGalleryMsg.startsWith("❌") ? "rgba(239,68,68,0.3)" : "rgba(34,197,94,0.3)"}`
+                  }}>
+                    <span>{genGalleryMsg}</span>
+                    <button 
+                      onClick={() => setGenGalleryMsg(null)} 
+                      style={{ background: "transparent", border: "none", color: "inherit", cursor: "pointer", padding: "0 0.5rem", fontSize: "1.25rem" }}
+                    >✕</button>
+                  </div>
+                )}
+
+                {genGalleryLoading ? (
+                  <div style={{ textAlign: "center", padding: "3rem", color: "var(--text-muted)" }}>
+                    <div className="spinner" style={{ margin: "0 auto 1rem" }}></div>
+                    Memuat galeri...
+                  </div>
+                ) : genGalleryPhotos.length === 0 ? (
+                  <div style={{ 
+                    textAlign: "center", padding: "4rem 2rem", color: "var(--text-muted)", 
+                    background: "rgba(0,0,0,0.2)", borderRadius: "12px", border: "2px dashed var(--border)" 
+                  }}>
+                    <div style={{ fontSize: "2.5rem", marginBottom: "1rem" }}>📸</div>
+                    <p style={{ fontWeight: 600 }}>Belum ada foto untuk hari ini.</p>
+                    <p style={{ fontSize: "0.85rem", marginTop: "0.5rem" }}>Klik tombol di atas untuk mulai mengunggah foto suasana.</p>
+                  </div>
+                ) : (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "1.25rem" }}>
+                    {genGalleryPhotos.map((photo, index) => (
+                      <div key={photo.id} style={{ 
+                        position: "relative", background: "var(--bg-secondary)", borderRadius: "12px", 
+                        overflow: "hidden", border: "1px solid var(--border)",
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.2)"
+                      }}>
+                        <img src={photo.url} alt="Gallery" style={{ width: "100%", height: "140px", objectFit: "cover", display: "block" }} />
+                        
+                        <div style={{ display: "flex", justifyContent: "space-between", padding: "0.5rem", background: "rgba(10, 14, 26, 0.85)" }}>
+                          <div style={{ display: "flex", gap: "0.4rem" }}>
+                            <button 
+                              onClick={() => handleGenGalleryMove(index, 'up')} 
+                              disabled={index === 0}
+                              style={{ 
+                                background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", 
+                                borderRadius: "4px", padding: "0.2rem 0.4rem",
+                                color: index === 0 ? "#444" : "#fff", cursor: index === 0 ? "default" : "pointer" 
+                              }}
+                            >◀</button>
+                            <button 
+                              onClick={() => handleGenGalleryMove(index, 'down')} 
+                              disabled={index === genGalleryPhotos.length - 1}
+                              style={{ 
+                                background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", 
+                                borderRadius: "4px", padding: "0.2rem 0.4rem",
+                                color: index === genGalleryPhotos.length - 1 ? "#444" : "#fff", cursor: index === genGalleryPhotos.length - 1 ? "default" : "pointer" 
+                              }}
+                            >▶</button>
+                          </div>
+                          <button 
+                            onClick={() => handleGenGalleryDelete(photo.id)}
+                            style={{ 
+                              background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", 
+                              borderRadius: "4px", padding: "0.2rem 0.5rem",
+                              color: "#fca5a5", cursor: "pointer" 
+                            }}
+                          >🗑️</button>
+                          <a 
+                            href={photo.url.replace('/upload/', '/upload/fl_attachment/')} 
+                            download={`Suasana_${index + 1}.jpg`}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ 
+                              background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", 
+                              borderRadius: "4px", padding: "0.2rem 0.5rem",
+                              color: "#fff", cursor: "pointer", textDecoration: "none", display: "flex", alignItems: "center"
+                            }}
+                            title="Download"
+                          >⬇️</a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}

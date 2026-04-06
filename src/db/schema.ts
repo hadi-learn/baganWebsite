@@ -119,6 +119,7 @@ export const matchPhotos = mysqlTable("match_photos", {
   matchCode: varchar("match_code", { length: 255 }).notNull(), // Unified code e.g. "1" from "M1" or "#1"
   cloudinaryPublicId: varchar("cloudinary_public_id", { length: 255 }).notNull(),
   url: varchar("url", { length: 500 }).notNull(),
+  type: mysqlEnum("type", ["match", "general"]).default("match").notNull(),
   sortOrder: int("sort_order").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

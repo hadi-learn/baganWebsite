@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { matchPhotos } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, asc, and } from "drizzle-orm";
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const rawMatchCode = searchParams.get("match");
-    const matchCode = rawMatchCode ? rawMatchCode.trim() : null;
+    const matchCode = searchParams.get("match");
+    const type = searchParams.get("type") || "match";
 
     if (!matchCode) {
       return NextResponse.json({ error: "Match code is required" }, { status: 400 });
@@ -16,17 +16,17 @@ export async function GET(request: Request) {
     const photos = await db
       .select()
       .from(matchPhotos)
-      .where(eq(matchPhotos.matchCode, matchCode));
-
-    // Sort by sortOrder
-    photos.sort((a, b) => a.sortOrder - b.sortOrder);
+      .where(
+        and(
+          eq(matchPhotos.matchCode, matchCode),
+          eq(matchPhotos.type, type as any)
+        )
+      )
+      .orderBy(asc(matchPhotos.sortOrder));
 
     return NextResponse.json({ photos });
   } catch (error) {
-    console.error("Error fetching gallery:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch gallery" },
-      { status: 500 }
-    );
+    console.error("Gallery Fetch Error:", error);
+    return NextResponse.json({ error: "Fetch failed" }, { status: 500 });
   }
 }

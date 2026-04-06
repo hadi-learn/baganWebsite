@@ -273,6 +273,12 @@ export default function HomePage() {
   const [openLightboxCode, setOpenLightboxCode] = useState<string | null>(null);
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
   const [selectedMatchInfo, setSelectedMatchInfo] = useState<{match: Match | ScheduleMatch; categoryDisplayName: string} | null>(null);
+  
+  // Gallery Tab states
+  const [gallerySubMode, setGallerySubMode] = useState<"matches" | "general">("matches");
+  const [activeGalleryDay, setActiveGalleryDay] = useState<string>("");
+  const [genGalleryPhotos, setGenGalleryPhotos] = useState<any[]>([]);
+  const [genGalleryLoading, setGenGalleryLoading] = useState(false);
 
   const handleCardClick = (rawCode: string, catName: string, info: { match: Match | ScheduleMatch; categoryDisplayName: string }) => {
     const codeNumber = rawCode.replace(/\D/g, "");
@@ -375,6 +381,7 @@ export default function HomePage() {
           setScheduleData(matches);
           const days = [...new Set(matches.map((m: ScheduleMatch) => m.dayDate))];
           if (days.length > 0 && !activeDay) setActiveDay(days[0]);
+          if (days.length > 0 && !activeGalleryDay) setActiveGalleryDay(days[0]);
           // Use first category from config or data
           const cats = [...new Set(matches.map((m: ScheduleMatch) => m.category))];
           if (cats.length > 0 && !activeSchedCat) setActiveSchedCat(cats[0]);
@@ -411,6 +418,28 @@ export default function HomePage() {
       .catch(console.error)
       .finally(() => setGallerySummaryLoading(false));
   }, []);
+
+  const loadGenGallery = useCallback(async (day: string) => {
+    if (!day) return;
+    setGenGalleryLoading(true);
+    try {
+      const res = await fetch(`/api/gallery?match=${encodeURIComponent(day)}&type=general`);
+      const data = await res.json();
+      if (res.ok) {
+        setGenGalleryPhotos(data.photos || []);
+      }
+    } catch {
+      console.error("Failed to load general gallery");
+    } finally {
+      setGenGalleryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (viewMode === "gallery" && gallerySubMode === "general" && activeGalleryDay) {
+      loadGenGallery(activeGalleryDay);
+    }
+  }, [viewMode, gallerySubMode, activeGalleryDay, loadGenGallery]);
 
   useEffect(() => {
     if (viewMode === "gallery" && gallerySummary.length === 0) {
@@ -507,6 +536,13 @@ export default function HomePage() {
         >
           <span className="view-icon">📅</span>
           <span className="view-label">Jadwal Pertandingan</span>
+        </button>
+        <button
+          className={`view-card ${viewMode === "gallery" ? "view-active" : ""}`}
+          onClick={() => setViewMode("gallery")}
+        >
+          <span className="view-icon">📸</span>
+          <span className="view-label">Galeri Foto</span>
         </button>
       </div>
 
@@ -728,6 +764,134 @@ export default function HomePage() {
               )}
             </div>
           )}
+
+          {/* ===== GALLERY VIEW ===== */}
+          {viewMode === "gallery" && (
+            <div className="gallery-view">
+              <div className="sched-filter-tabs">
+                <button
+                  className={`sched-filter-btn ${gallerySubMode === "matches" ? "active" : ""}`}
+                  onClick={() => setGallerySubMode("matches")}
+                >
+                  🏸 Foto Pertandingan
+                </button>
+                <button
+                  className={`sched-filter-btn ${gallerySubMode === "general" ? "active" : ""}`}
+                  onClick={() => setGallerySubMode("general")}
+                >
+                  📸 Seputar Turnamen
+                </button>
+              </div>
+
+              <div className="sched-day-picker">
+                {scheduleDays.map((day, idx) => (
+                  <button
+                    key={day}
+                    className={`sched-day-btn ${activeGalleryDay === day ? "active" : ""}`}
+                    onClick={() => setActiveGalleryDay(day)}
+                  >
+                    <span className="sched-day-label">{shortDay(day)}</span>
+                    <span className="sched-day-number">Hari {idx + 1}</span>
+                  </button>
+                ))}
+              </div>
+
+              {gallerySubMode === "matches" ? (
+                <div className="schedule-list">
+                  <h2 className="sched-day-title">
+                    🏸 Galeri Pertandingan: {activeGalleryDay}
+                  </h2>
+                  <div className="sched-cards">
+                    {(() => {
+                      const dayMatches = scheduleData.filter(m => m.dayDate === activeGalleryDay && m.status === 'completed');
+                      const matchesWithPhotos = dayMatches.filter(m => {
+                        const unifiedCode = getUnifiedMatchCode(m.category, m.gameNumber).toLowerCase();
+                        return gallerySummary.some(s => s.matchCode?.toLowerCase() === unifiedCode);
+                      });
+
+                      if (dayMatches.length === 0) {
+                        return (
+                          <div className="empty-state" style={{ gridColumn: '1/-1' }}>
+                            <p>🏸 Belum ada pertandingan selesai hari ini.</p>
+                          </div>
+                        );
+                      }
+
+                      if (matchesWithPhotos.length === 0) {
+                        return (
+                          <div className="empty-state" style={{ gridColumn: '1/-1' }}>
+                            <p>📸 Belum ada foto yang diunggah untuk pertandingan hari ini.</p>
+                          </div>
+                        );
+                      }
+                      
+                      return matchesWithPhotos.map((m) => (
+                        <ScheduleCard 
+                          key={m.id} 
+                          match={m} 
+                          catDisplayName={getCatDisplayName(m.category)} 
+                          onCardClick={handleCardClick} 
+                        />
+                      ));
+                    })()}
+                  </div>
+                </div>
+              ) : (
+                <div className="general-gallery-view">
+                  <h2 className="sched-day-title">
+                    📸 Suasana Turnamen: {activeGalleryDay}
+                  </h2>
+                  
+                  {genGalleryLoading ? (
+                    <div className="loading">
+                      <div className="spinner"></div>
+                      <p>Memuat foto...</p>
+                    </div>
+                  ) : genGalleryPhotos.length === 0 ? (
+                    <div className="empty-state">
+                      <p>📸 Belum ada foto suasana untuk hari ini.</p>
+                    </div>
+                  ) : (
+                    <div className="gen-gallery-grid" style={{ 
+                      display: 'grid', 
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', 
+                      gap: '1.5rem',
+                      marginTop: '1.5rem'
+                    }}>
+                      {genGalleryPhotos.map((photo, idx) => (
+                        <div 
+                          key={photo.id} 
+                          className="gen-photo-card clickable"
+                          onClick={() => {
+                            setGalleryPhotos(genGalleryPhotos);
+                            setSelectedMatchInfo(null);
+                            setOpenLightboxCode(activeGalleryDay);
+                            setActivePhotoIndex(idx);
+                          }}
+                          style={{
+                            aspectRatio: '1',
+                            borderRadius: '16px',
+                            overflow: 'hidden',
+                            border: '1px solid var(--glass-border)',
+                            background: 'var(--glass-bg)',
+                            boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+                            transition: 'transform 0.3s ease'
+                          }}
+                        >
+                          <img 
+                            src={photo.url} 
+                            alt={`Photo ${idx + 1}`} 
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                            loading="lazy"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
       <footer className="footer">
@@ -826,7 +990,7 @@ export default function HomePage() {
           <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
             <div className="lightbox-header">
               <div className="lightbox-match-summary">
-                {selectedMatchInfo && (
+                {selectedMatchInfo ? (
                   <>
                     <div className="lightbox-match-badge" style={{ 
                       backgroundColor: getCategoryStyles(selectedMatchInfo.categoryDisplayName).background, 
@@ -886,6 +1050,20 @@ export default function HomePage() {
                       )}
                     </div>
                   </>
+                ) : (
+                  <div className="lightbox-match-summary">
+                    <div className="lightbox-match-badge" style={{ 
+                      backgroundColor: 'var(--accent)', 
+                      color: '#000',
+                      border: `1px solid var(--accent-hover)`,
+                      fontWeight: 800
+                    }}>
+                      📸 Suasana Turnamen
+                    </div>
+                    <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.5rem' }}>
+                      {openLightboxCode}
+                    </div>
+                  </div>
                 )}
               </div>
               <button className="lightbox-close" onClick={() => setOpenLightboxCode(null)}>✕</button>
@@ -895,8 +1073,8 @@ export default function HomePage() {
               <img src={galleryPhotos[activePhotoIndex].url} alt={`Photo ${activePhotoIndex + 1}`} />
               
               <a 
-                href={galleryPhotos[activePhotoIndex].url} 
-                download={`Pertandingan_${openLightboxCode}_Foto_${activePhotoIndex + 1}.jpg`}
+                href={galleryPhotos[activePhotoIndex]?.url?.replace('/upload/', '/upload/fl_attachment/')} 
+                download={`Foto_${openLightboxCode}_${activePhotoIndex + 1}.jpg`}
                 target="_blank"
                 rel="noreferrer"
                 className="lightbox-download-btn"

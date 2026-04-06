@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { matchPhotos } from "@/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, and } from "drizzle-orm";
 import cloudinary from "@/lib/cloudinary";
 
 // Helper to upload buffer to Cloudinary
@@ -38,6 +38,7 @@ export async function POST(request: Request) {
     const file = formData.get("file") as File;
     const rawMatchCode = formData.get("matchCode") as string;
     const matchCode = rawMatchCode ? rawMatchCode.trim() : null;
+    const type = (formData.get("type") as "match" | "general") || "match";
 
     if (!file || !matchCode) {
       return NextResponse.json({ error: "File and matchCode are required" }, { status: 400 });
@@ -62,7 +63,14 @@ export async function POST(request: Request) {
     // Wrap DB call in try/catch to isolate
     let existingPhotos;
     try {
-      existingPhotos = await db.select().from(matchPhotos).where(eq(matchPhotos.matchCode, matchCode));
+      existingPhotos = await db.select()
+        .from(matchPhotos)
+        .where(
+          and(
+            eq(matchPhotos.matchCode, matchCode),
+            eq(matchPhotos.type, type)
+          )
+        );
     } catch (dbErr: any) {
       console.error("[Gallery API] DB Select Error:", dbErr);
       throw new Error(`Database Select Failed: ${dbErr.message}`);
@@ -77,6 +85,7 @@ export async function POST(request: Request) {
         matchCode,
         cloudinaryPublicId: uploadResult.public_id,
         url: uploadResult.secure_url,
+        type,
         sortOrder: maxSortOrder + 1,
       });
     } catch (insertErr: any) {

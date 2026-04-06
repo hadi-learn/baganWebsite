@@ -209,10 +209,26 @@ body {
 }
 
 /* ---- Schedule View ---- */
-.schedule-view {
+.schedule-view,
+.gallery-view {
   max-width: 900px;
   margin: 0 auto;
   padding: 0 1rem 2rem;
+}
+
+/* Specifically for gallery match cards to be centered and not too wide */
+.gallery-view .schedule-list {
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.general-gallery-view {
+  max-width: 1200px; /* General gallery can be wider for more thumbnails */
+  margin: 0 auto;
+}
+
+.general-gallery-view {
+  max-width: 1200px; /* General gallery can be wider for more thumbnails */
 }
 
 .sched-filter-tabs {
