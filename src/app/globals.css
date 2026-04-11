@@ -258,18 +258,13 @@ body {
   box-shadow: var(--shadow-glow);
 }
 
-/* Day picker — horizontal scroll */
+/* Day picker — wrap all days (no horizontal scroll) */
 .sched-day-picker {
   display: flex;
-  gap: 0.5rem;
-  overflow-x: auto;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  justify-content: center;
   padding: 0.75rem 0;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-
-.sched-day-picker::-webkit-scrollbar {
-  display: none;
 }
 
 .sched-day-btn {
@@ -311,14 +306,16 @@ body {
 
 .sched-day-label {
   font-family: var(--font-display);
-  font-weight: 800;
+  font-weight: 700;
   font-size: 0.85rem;
-  color: var(--text-primary);
+  color: var(--text-muted); /* Softer color for inactive */
   line-height: 1;
+  transition: color 0.3s ease;
 }
 
 .sched-day-btn.active .sched-day-label {
   color: #fff;
+  font-weight: 800;
 }
 
 /* Category picker */
@@ -628,15 +625,13 @@ body {
   }
 }
 
-/* ---- Category Tabs ---- */
+/* ---- Category Tabs — wrap all (no horizontal scroll) ---- */
 .category-tabs {
   display: flex;
   gap: 0.6rem;
   padding: 0;
-  overflow-x: auto;
+  flex-wrap: wrap;
   justify-content: center;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
 }
 
 .category-tabs::-webkit-scrollbar {
@@ -682,14 +677,16 @@ body {
 
 .tab-name {
   font-family: var(--font-display);
-  font-weight: 700;
+  font-weight: 600;
   font-size: 0.95rem;
-  color: var(--text-primary);
+  color: var(--text-secondary); /* Softer for inactive */
+  transition: color 0.3s ease;
 }
 
 .tab-label {
   font-size: 0.65rem;
   color: var(--text-muted);
+  opacity: 0.6;
 }
 
 .tab-btn.active {
