@@ -111,6 +111,7 @@ export default function AdminPage() {
   const [galleryLoading, setGalleryLoading] = useState(false);
   const [galleryUploading, setGalleryUploading] = useState(false);
   const [galleryMsg, setGalleryMsg] = useState<string | null>(null);
+  const [selectedGalleryIds, setSelectedGalleryIds] = useState<number[]>([]);
 
   const [gallerySummary, setGallerySummary] = useState<any[]>([]);
   const [gallerySummaryLoading, setGallerySummaryLoading] = useState(false);
@@ -122,6 +123,7 @@ export default function AdminPage() {
   const [genGalleryLoading, setGenGalleryLoading] = useState(false);
   const [genGalleryUploading, setGenGalleryUploading] = useState(false);
   const [genGalleryMsg, setGenGalleryMsg] = useState<string | null>(null);
+  const [selectedGenGalleryIds, setSelectedGenGalleryIds] = useState<number[]>([]);
 
   // Check auth
   useEffect(() => {
@@ -453,6 +455,7 @@ export default function AdminPage() {
       const data = await res.json();
       if (res.ok) {
         setGalleryPhotos(data.photos || []);
+        setSelectedGalleryIds([]);
       } else {
         setGalleryMsg(`❌ Gagal: ${data.error}`);
       }
@@ -604,12 +607,71 @@ export default function AdminPage() {
     }
   };
 
+  // Bulk delete selected photos (match gallery)
+  const handleGalleryDeleteSelected = async () => {
+    if (selectedGalleryIds.length === 0) return;
+    if (!confirm(`Yakin ingin menghapus ${selectedGalleryIds.length} foto terpilih? Foto akan dihapus dari Cloudinary dan Database.`)) return;
+
+    setGalleryMsg(`⏳ Menghapus ${selectedGalleryIds.length} foto...`);
+    try {
+      const res = await fetch("/api/admin/gallery", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedGalleryIds }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setGalleryMsg(`✅ ${data.deleted} foto berhasil dihapus.`);
+        setSelectedGalleryIds([]);
+        loadGallery(galleryMatchCode, true);
+      } else {
+        setGalleryMsg(`❌ Gagal: ${data.error}`);
+      }
+    } catch {
+      setGalleryMsg("❌ Terjadi kesalahan saat menghapus.");
+    }
+  };
+
+  // Bulk delete selected photos (general gallery)
+  const handleGenGalleryDeleteSelected = async () => {
+    if (selectedGenGalleryIds.length === 0) return;
+    if (!confirm(`Yakin ingin menghapus ${selectedGenGalleryIds.length} foto terpilih? Foto akan dihapus dari Cloudinary dan Database.`)) return;
+
+    setGenGalleryMsg(`⏳ Menghapus ${selectedGenGalleryIds.length} foto...`);
+    try {
+      const res = await fetch("/api/admin/gallery", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedGenGalleryIds }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setGenGalleryMsg(`✅ ${data.deleted} foto berhasil dihapus.`);
+        setSelectedGenGalleryIds([]);
+        loadGenGallery(genGalleryDay);
+      } else {
+        setGenGalleryMsg(`❌ Gagal: ${data.error}`);
+      }
+    } catch {
+      setGenGalleryMsg("❌ Terjadi kesalahan saat menghapus.");
+    }
+  };
+
+  // Format bytes to human-readable
+  const formatFileSize = (bytes: number | null | undefined) => {
+    if (!bytes) return "—";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
   // --- General Gallery Functions ---
   const loadGenGallery = async (day: string) => {
     if (!day) return;
     setGenGalleryDay(day);
     setGenGalleryLoading(true);
     setGenGalleryMsg(null);
+    setSelectedGenGalleryIds([]);
     try {
       const res = await fetch(`/api/gallery?match=${encodeURIComponent(day)}&type=general`);
       const data = await res.json();
@@ -1349,47 +1411,71 @@ export default function AdminPage() {
                 )}
 
                 <div className="admin-card" style={{ marginTop: "1.5rem" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-                    <h3 style={{ color: "var(--text-primary)" }}>Daftar Foto ({galleryPhotos.length})</h3>
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
-                      <label 
-                        className="save-btn" 
-                        style={{ 
-                          background: "var(--accent)", 
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                    <div>
+                      <h3 style={{ color: "var(--text-primary)", margin: 0 }}>Daftar Foto ({galleryPhotos.length})</h3>
+                      {galleryPhotos.length > 0 && (
+                        <p style={{ color: "var(--text-muted)", fontSize: "0.75rem", margin: "0.25rem 0 0" }}>
+                          Total: {formatFileSize(galleryPhotos.reduce((sum: number, p: any) => sum + (p.fileSize || 0), 0))}
+                          {selectedGalleryIds.length > 0 && ` • ${selectedGalleryIds.length} dipilih`}
+                        </p>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                      {galleryPhotos.length > 0 && (
+                        <button
+                          onClick={() => {
+                            if (selectedGalleryIds.length === galleryPhotos.length) {
+                              setSelectedGalleryIds([]);
+                            } else {
+                              setSelectedGalleryIds(galleryPhotos.map((p: any) => p.id));
+                            }
+                          }}
+                          style={{
+                            background: "rgba(99,102,241,0.1)", color: "#a5b4fc",
+                            border: "1px solid rgba(99,102,241,0.3)", padding: "0.5rem 1rem",
+                            borderRadius: "6px", cursor: "pointer", fontWeight: 600, fontSize: "0.85rem"
+                          }}
+                        >
+                          {selectedGalleryIds.length === galleryPhotos.length ? "☐ Batal Pilih" : "☑ Pilih Semua"}
+                        </button>
+                      )}
+                      {selectedGalleryIds.length > 0 && (
+                        <button
+                          onClick={handleGalleryDeleteSelected}
+                          style={{
+                            background: "rgba(239, 68, 68, 0.15)", color: "#fca5a5",
+                            border: "1px solid rgba(239, 68, 68, 0.4)", padding: "0.5rem 1rem",
+                            borderRadius: "6px", cursor: "pointer", fontWeight: 700, fontSize: "0.85rem"
+                          }}
+                        >
+                          🗑️ Hapus Terpilih ({selectedGalleryIds.length})
+                        </button>
+                      )}
+                      <label
+                        className="save-btn"
+                        style={{
+                          background: "var(--accent)",
                           cursor: (galleryUploading || !galleryMatchCode) ? "not-allowed" : "pointer",
                           opacity: (galleryUploading || !galleryMatchCode) ? 0.6 : 1,
-                          display: "inline-block",
-                          padding: "0.5rem 1rem",
-                          borderRadius: "6px",
-                          fontSize: "0.9rem"
+                          display: "inline-block", padding: "0.5rem 1rem", borderRadius: "6px", fontSize: "0.9rem"
                         }}
                       >
                         {galleryUploading ? "⏳ Uploading..." : "➕ Tambah Foto"}
-                        <input 
-                          type="file" 
-                          multiple 
-                          accept="image/*" 
+                        <input
+                          type="file" multiple accept="image/*"
                           onChange={handleGalleryUpload}
                           disabled={galleryUploading || !galleryMatchCode}
                           style={{ display: "none" }}
                         />
                       </label>
                       {galleryPhotos.length > 0 && (
-                        <button 
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleGalleryDeleteAll();
-                          }}
-                          style={{ 
-                            background: "rgba(239, 68, 68, 0.1)", 
-                            color: "#fca5a5", 
-                            border: "1px solid rgba(239, 68, 68, 0.3)", 
-                            padding: "0.5rem 1rem", 
-                            borderRadius: "6px", 
-                            cursor: "pointer", 
-                            fontWeight: 600,
-                            fontSize: "0.9rem"
+                        <button
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleGalleryDeleteAll(); }}
+                          style={{
+                            background: "rgba(239, 68, 68, 0.1)", color: "#fca5a5",
+                            border: "1px solid rgba(239, 68, 68, 0.3)", padding: "0.5rem 1rem",
+                            borderRadius: "6px", cursor: "pointer", fontWeight: 600, fontSize: "0.9rem"
                           }}
                         >
                           🗑️ Hapus Semua
@@ -1405,42 +1491,76 @@ export default function AdminPage() {
                       Belum ada foto untuk pertandingan ini.
                     </div>
                   ) : (
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "1rem" }}>
-                      {galleryPhotos.map((photo, index) => (
-                        <div key={photo.id} style={{ position: "relative", background: "var(--glass-bg)", borderRadius: "8px", overflow: "hidden", border: "1px solid var(--border-light)" }}>
-                          <img src={photo.url} alt="Gallery" style={{ width: "100%", height: "120px", objectFit: "cover", display: "block" }} />
-                          
-                          <div style={{ display: "flex", justifyContent: "space-between", padding: "0.4rem", background: "rgba(0,0,0,0.6)" }}>
-                            <div style={{ display: "flex", gap: "0.2rem" }}>
-                              <button 
-                                onClick={() => handleGalleryMove(index, 'up')} 
-                                disabled={index === 0}
-                                style={{ background: "transparent", border: "none", color: index === 0 ? "#555" : "#fff", cursor: index === 0 ? "default" : "pointer" }}
-                                title="Pindah ke kiri/atas"
-                              >◀</button>
-                              <button 
-                                onClick={() => handleGalleryMove(index, 'down')} 
-                                disabled={index === galleryPhotos.length - 1}
-                                style={{ background: "transparent", border: "none", color: index === galleryPhotos.length - 1 ? "#555" : "#fff", cursor: index === galleryPhotos.length - 1 ? "default" : "pointer" }}
-                                title="Pindah ke kanan/bawah"
-                              >▶</button>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "1rem" }}>
+                      {galleryPhotos.map((photo: any, index: number) => {
+                        const isSelected = selectedGalleryIds.includes(photo.id);
+                        return (
+                          <div key={photo.id} style={{
+                            position: "relative", background: "var(--glass-bg)", borderRadius: "8px", overflow: "hidden",
+                            border: isSelected ? "2px solid var(--accent)" : "1px solid var(--border-light)",
+                            boxShadow: isSelected ? "0 0 12px rgba(99,102,241,0.3)" : "none",
+                            transition: "all 0.2s ease"
+                          }}>
+                            {/* Checkbox overlay */}
+                            <div
+                              onClick={() => {
+                                setSelectedGalleryIds(prev =>
+                                  prev.includes(photo.id) ? prev.filter((x: number) => x !== photo.id) : [...prev, photo.id]
+                                );
+                              }}
+                              style={{
+                                position: "absolute", top: "6px", left: "6px", zIndex: 2,
+                                width: "22px", height: "22px", borderRadius: "4px", cursor: "pointer",
+                                background: isSelected ? "var(--accent)" : "rgba(0,0,0,0.5)",
+                                border: isSelected ? "none" : "2px solid rgba(255,255,255,0.5)",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                color: "#fff", fontSize: "0.75rem", fontWeight: 800
+                              }}
+                            >
+                              {isSelected && "✓"}
                             </div>
-                            <button 
-                              onClick={() => handleGalleryDelete(photo.id)}
-                              style={{ background: "transparent", border: "none", color: "#fca5a5", cursor: "pointer", fontSize: "0.9rem" }}
-                              title="Hapus"
-                            >🗑️</button>
-                            <a 
-                              href={photo.url.replace('/upload/', '/upload/fl_attachment/')} 
-                              download={`Photo_${index + 1}.jpg`}
-                              target="_blank"
-                              rel="noreferrer"
-                              style={{ background: "transparent", border: "none", color: "#fff", cursor: "pointer", fontSize: "0.9rem", textDecoration: "none" }}
-                              title="Download"
-                            >⬇️</a>
+
+                            <img src={photo.url} alt="Gallery" style={{ width: "100%", height: "120px", objectFit: "cover", display: "block" }} />
+
+                            {/* File size label */}
+                            <div style={{
+                              padding: "0.25rem 0.4rem", background: "rgba(0,0,0,0.7)",
+                              fontSize: "0.65rem", color: "var(--text-muted)", textAlign: "center"
+                            }}>
+                              {formatFileSize(photo.fileSize)}
+                            </div>
+
+                            <div style={{ display: "flex", justifyContent: "space-between", padding: "0.4rem", background: "rgba(0,0,0,0.6)" }}>
+                              <div style={{ display: "flex", gap: "0.2rem" }}>
+                                <button
+                                  onClick={() => handleGalleryMove(index, 'up')}
+                                  disabled={index === 0}
+                                  style={{ background: "transparent", border: "none", color: index === 0 ? "#555" : "#fff", cursor: index === 0 ? "default" : "pointer" }}
+                                  title="Pindah ke kiri/atas"
+                                >◀</button>
+                                <button
+                                  onClick={() => handleGalleryMove(index, 'down')}
+                                  disabled={index === galleryPhotos.length - 1}
+                                  style={{ background: "transparent", border: "none", color: index === galleryPhotos.length - 1 ? "#555" : "#fff", cursor: index === galleryPhotos.length - 1 ? "default" : "pointer" }}
+                                  title="Pindah ke kanan/bawah"
+                                >▶</button>
+                              </div>
+                              <button
+                                onClick={() => handleGalleryDelete(photo.id)}
+                                style={{ background: "transparent", border: "none", color: "#fca5a5", cursor: "pointer", fontSize: "0.9rem" }}
+                                title="Hapus"
+                              >🗑️</button>
+                              <a
+                                href={photo.url.replace('/upload/', '/upload/fl_attachment/')}
+                                download={`Photo_${index + 1}.jpg`}
+                                target="_blank" rel="noreferrer"
+                                style={{ background: "transparent", border: "none", color: "#fff", cursor: "pointer", fontSize: "0.9rem", textDecoration: "none" }}
+                                title="Download"
+                              >⬇️</a>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -1492,52 +1612,81 @@ export default function AdminPage() {
 
             {genGalleryDay && (
               <div className="admin-card">
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem", flexWrap: "wrap", gap: "0.5rem" }}>
                   <div>
                     <h3 style={{ color: "var(--text-primary)", margin: 0 }}>🖼️ Daftar Foto: {genGalleryDay}</h3>
-                    <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", marginTop: "0.25rem" }}>{genGalleryPhotos.length} foto tersimpan</p>
+                    <p style={{ color: "var(--text-muted)", fontSize: "0.8rem", marginTop: "0.25rem" }}>
+                      {genGalleryPhotos.length} foto tersimpan
+                      {genGalleryPhotos.length > 0 && ` • Total: ${formatFileSize(genGalleryPhotos.reduce((sum: number, p: any) => sum + (p.fileSize || 0), 0))}`}
+                      {selectedGenGalleryIds.length > 0 && ` • ${selectedGenGalleryIds.length} dipilih`}
+                    </p>
                   </div>
-                  
-                  <label 
-                    className="save-btn" 
-                    style={{ 
-                      background: "var(--accent)", 
-                      cursor: genGalleryUploading ? "not-allowed" : "pointer",
-                      opacity: genGalleryUploading ? 0.6 : 1,
-                      display: "inline-block",
-                      padding: "0.6rem 1.25rem",
-                      borderRadius: "8px",
-                      fontSize: "0.95rem",
-                      fontWeight: 700
-                    }}
-                  >
-                    {genGalleryUploading ? "⏳ Uploading..." : "➕ Tambah Foto Baru"}
-                    <input 
-                      type="file" 
-                      multiple 
-                      accept="image/*" 
-                      onChange={handleGenGalleryUpload}
-                      disabled={genGalleryUploading}
-                      style={{ display: "none" }}
-                    />
-                  </label>
+
+                  <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                    {genGalleryPhotos.length > 0 && (
+                      <button
+                        onClick={() => {
+                          if (selectedGenGalleryIds.length === genGalleryPhotos.length) {
+                            setSelectedGenGalleryIds([]);
+                          } else {
+                            setSelectedGenGalleryIds(genGalleryPhotos.map((p: any) => p.id));
+                          }
+                        }}
+                        style={{
+                          background: "rgba(99,102,241,0.1)", color: "#a5b4fc",
+                          border: "1px solid rgba(99,102,241,0.3)", padding: "0.5rem 1rem",
+                          borderRadius: "6px", cursor: "pointer", fontWeight: 600, fontSize: "0.85rem"
+                        }}
+                      >
+                        {selectedGenGalleryIds.length === genGalleryPhotos.length ? "☐ Batal Pilih" : "☑ Pilih Semua"}
+                      </button>
+                    )}
+                    {selectedGenGalleryIds.length > 0 && (
+                      <button
+                        onClick={handleGenGalleryDeleteSelected}
+                        style={{
+                          background: "rgba(239, 68, 68, 0.15)", color: "#fca5a5",
+                          border: "1px solid rgba(239, 68, 68, 0.4)", padding: "0.5rem 1rem",
+                          borderRadius: "6px", cursor: "pointer", fontWeight: 700, fontSize: "0.85rem"
+                        }}
+                      >
+                        🗑️ Hapus Terpilih ({selectedGenGalleryIds.length})
+                      </button>
+                    )}
+                    <label
+                      className="save-btn"
+                      style={{
+                        background: "var(--accent)",
+                        cursor: genGalleryUploading ? "not-allowed" : "pointer",
+                        opacity: genGalleryUploading ? 0.6 : 1,
+                        display: "inline-block", padding: "0.6rem 1.25rem",
+                        borderRadius: "8px", fontSize: "0.95rem", fontWeight: 700
+                      }}
+                    >
+                      {genGalleryUploading ? "⏳ Uploading..." : "➕ Tambah Foto Baru"}
+                      <input
+                        type="file" multiple accept="image/*"
+                        onChange={handleGenGalleryUpload}
+                        disabled={genGalleryUploading}
+                        style={{ display: "none" }}
+                      />
+                    </label>
+                  </div>
                 </div>
 
                 {genGalleryMsg && (
-                  <div style={{ 
+                  <div style={{
                     marginBottom: "1.5rem", padding: "0.85rem 1.25rem", borderRadius: "10px", fontSize: "0.9rem",
-                    background: genGalleryMsg.startsWith("❌") ? "rgba(239, 68, 68, 0.15)" : 
+                    background: genGalleryMsg.startsWith("❌") ? "rgba(239, 68, 68, 0.15)" :
                                (genGalleryMsg.startsWith("⏳") ? "rgba(245, 158, 11, 0.15)" : "rgba(34, 197, 94, 0.15)"),
-                    color: genGalleryMsg.startsWith("❌") ? "#fca5a5" : 
+                    color: genGalleryMsg.startsWith("❌") ? "#fca5a5" :
                           (genGalleryMsg.startsWith("⏳") ? "#fcd34d" : "#86efac"),
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
                     border: `1px solid ${genGalleryMsg.startsWith("❌") ? "rgba(239,68,68,0.3)" : "rgba(34,197,94,0.3)"}`
                   }}>
                     <span>{genGalleryMsg}</span>
-                    <button 
-                      onClick={() => setGenGalleryMsg(null)} 
+                    <button
+                      onClick={() => setGenGalleryMsg(null)}
                       style={{ background: "transparent", border: "none", color: "inherit", cursor: "pointer", padding: "0 0.5rem", fontSize: "1.25rem" }}
                     >✕</button>
                   </div>
@@ -1549,9 +1698,9 @@ export default function AdminPage() {
                     Memuat galeri...
                   </div>
                 ) : genGalleryPhotos.length === 0 ? (
-                  <div style={{ 
-                    textAlign: "center", padding: "4rem 2rem", color: "var(--text-muted)", 
-                    background: "rgba(0,0,0,0.2)", borderRadius: "12px", border: "2px dashed var(--border)" 
+                  <div style={{
+                    textAlign: "center", padding: "4rem 2rem", color: "var(--text-muted)",
+                    background: "rgba(0,0,0,0.2)", borderRadius: "12px", border: "2px dashed var(--border)"
                   }}>
                     <div style={{ fontSize: "2.5rem", marginBottom: "1rem" }}>📸</div>
                     <p style={{ fontWeight: 600 }}>Belum ada foto untuk hari ini.</p>
@@ -1559,58 +1708,89 @@ export default function AdminPage() {
                   </div>
                 ) : (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "1.25rem" }}>
-                    {genGalleryPhotos.map((photo, index) => (
-                      <div key={photo.id} style={{ 
-                        position: "relative", background: "var(--bg-secondary)", borderRadius: "12px", 
-                        overflow: "hidden", border: "1px solid var(--border)",
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.2)"
-                      }}>
-                        <img src={photo.url} alt="Gallery" style={{ width: "100%", height: "140px", objectFit: "cover", display: "block" }} />
-                        
-                        <div style={{ display: "flex", justifyContent: "space-between", padding: "0.5rem", background: "rgba(10, 14, 26, 0.85)" }}>
-                          <div style={{ display: "flex", gap: "0.4rem" }}>
-                            <button 
-                              onClick={() => handleGenGalleryMove(index, 'up')} 
-                              disabled={index === 0}
-                              style={{ 
-                                background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", 
-                                borderRadius: "4px", padding: "0.2rem 0.4rem",
-                                color: index === 0 ? "#444" : "#fff", cursor: index === 0 ? "default" : "pointer" 
-                              }}
-                            >◀</button>
-                            <button 
-                              onClick={() => handleGenGalleryMove(index, 'down')} 
-                              disabled={index === genGalleryPhotos.length - 1}
-                              style={{ 
-                                background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", 
-                                borderRadius: "4px", padding: "0.2rem 0.4rem",
-                                color: index === genGalleryPhotos.length - 1 ? "#444" : "#fff", cursor: index === genGalleryPhotos.length - 1 ? "default" : "pointer" 
-                              }}
-                            >▶</button>
+                    {genGalleryPhotos.map((photo: any, index: number) => {
+                      const isSelected = selectedGenGalleryIds.includes(photo.id);
+                      return (
+                        <div key={photo.id} style={{
+                          position: "relative", background: "var(--bg-secondary)", borderRadius: "12px",
+                          overflow: "hidden",
+                          border: isSelected ? "2px solid var(--accent)" : "1px solid var(--border)",
+                          boxShadow: isSelected ? "0 0 12px rgba(99,102,241,0.3)" : "0 4px 12px rgba(0,0,0,0.2)",
+                          transition: "all 0.2s ease"
+                        }}>
+                          {/* Checkbox overlay */}
+                          <div
+                            onClick={() => {
+                              setSelectedGenGalleryIds(prev =>
+                                prev.includes(photo.id) ? prev.filter((x: number) => x !== photo.id) : [...prev, photo.id]
+                              );
+                            }}
+                            style={{
+                              position: "absolute", top: "6px", left: "6px", zIndex: 2,
+                              width: "24px", height: "24px", borderRadius: "5px", cursor: "pointer",
+                              background: isSelected ? "var(--accent)" : "rgba(0,0,0,0.5)",
+                              border: isSelected ? "none" : "2px solid rgba(255,255,255,0.5)",
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              color: "#fff", fontSize: "0.8rem", fontWeight: 800
+                            }}
+                          >
+                            {isSelected && "✓"}
                           </div>
-                          <button 
-                            onClick={() => handleGenGalleryDelete(photo.id)}
-                            style={{ 
-                              background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", 
-                              borderRadius: "4px", padding: "0.2rem 0.5rem",
-                              color: "#fca5a5", cursor: "pointer" 
-                            }}
-                          >🗑️</button>
-                          <a 
-                            href={photo.url.replace('/upload/', '/upload/fl_attachment/')} 
-                            download={`Suasana_${index + 1}.jpg`}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{ 
-                              background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", 
-                              borderRadius: "4px", padding: "0.2rem 0.5rem",
-                              color: "#fff", cursor: "pointer", textDecoration: "none", display: "flex", alignItems: "center"
-                            }}
-                            title="Download"
-                          >⬇️</a>
+
+                          <img src={photo.url} alt="Gallery" style={{ width: "100%", height: "140px", objectFit: "cover", display: "block" }} />
+
+                          {/* File size label */}
+                          <div style={{
+                            padding: "0.25rem 0.4rem", background: "rgba(0,0,0,0.7)",
+                            fontSize: "0.65rem", color: "var(--text-muted)", textAlign: "center"
+                          }}>
+                            {formatFileSize(photo.fileSize)}
+                          </div>
+
+                          <div style={{ display: "flex", justifyContent: "space-between", padding: "0.5rem", background: "rgba(10, 14, 26, 0.85)" }}>
+                            <div style={{ display: "flex", gap: "0.4rem" }}>
+                              <button
+                                onClick={() => handleGenGalleryMove(index, 'up')}
+                                disabled={index === 0}
+                                style={{
+                                  background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+                                  borderRadius: "4px", padding: "0.2rem 0.4rem",
+                                  color: index === 0 ? "#444" : "#fff", cursor: index === 0 ? "default" : "pointer"
+                                }}
+                              >◀</button>
+                              <button
+                                onClick={() => handleGenGalleryMove(index, 'down')}
+                                disabled={index === genGalleryPhotos.length - 1}
+                                style={{
+                                  background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+                                  borderRadius: "4px", padding: "0.2rem 0.4rem",
+                                  color: index === genGalleryPhotos.length - 1 ? "#444" : "#fff", cursor: index === genGalleryPhotos.length - 1 ? "default" : "pointer"
+                                }}
+                              >▶</button>
+                            </div>
+                            <button
+                              onClick={() => handleGenGalleryDelete(photo.id)}
+                              style={{
+                                background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)",
+                                borderRadius: "4px", padding: "0.2rem 0.5rem",
+                                color: "#fca5a5", cursor: "pointer"
+                              }}
+                            >🗑️</button>
+                            <a
+                              href={photo.url.replace('/upload/', '/upload/fl_attachment/')}
+                              download={`Suasana_${index + 1}.jpg`}
+                              target="_blank" rel="noreferrer"
+                              style={{
+                                background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)",
+                                borderRadius: "4px", padding: "0.2rem 0.5rem",
+                                color: "#fff", cursor: "pointer", textDecoration: "none", display: "flex", alignItems: "center"
+                              }}
+                              title="Download"
+                            >⬇️</a>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

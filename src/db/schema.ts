@@ -121,5 +121,6 @@ export const matchPhotos = mysqlTable("match_photos", {
   url: varchar("url", { length: 500 }).notNull(),
   type: mysqlEnum("type", ["match", "general"]).default("match").notNull(),
   sortOrder: int("sort_order").default(0).notNull(),
+  fileSize: int("file_size"), // bytes, nullable for existing records
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

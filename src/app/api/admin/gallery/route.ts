@@ -87,6 +87,7 @@ export async function POST(request: Request) {
         url: uploadResult.secure_url,
         type,
         sortOrder: maxSortOrder + 1,
+        fileSize: uploadResult.bytes || null,
       });
     } catch (insertErr: any) {
       console.error("[Gallery API] DB Insert Error:", insertErr);
@@ -105,23 +106,43 @@ export async function POST(request: Request) {
   }
 }
 
-// DELETE: Delete a photo
+// DELETE: Delete one or multiple photos
 export async function DELETE(request: Request) {
   try {
-    const { id } = await request.json();
-    if (!id) return NextResponse.json({ error: "Photo ID required" }, { status: 400 });
+    const body = await request.json();
+    const { id, ids } = body;
+    
+    // Support bulk delete via ids array
+    const idsToDelete: number[] = ids ? ids : (id ? [id] : []);
+    if (idsToDelete.length === 0) {
+      return NextResponse.json({ error: "Photo ID(s) required" }, { status: 400 });
+    }
 
-    // Find photo in DB
-    const [photo] = await db.select().from(matchPhotos).where(eq(matchPhotos.id, id));
-    if (!photo) return NextResponse.json({ error: "Photo not found" }, { status: 404 });
+    // Find photos in DB
+    const photos = await db.select().from(matchPhotos).where(inArray(matchPhotos.id, idsToDelete));
+    if (photos.length === 0) {
+      return NextResponse.json({ error: "No photos found" }, { status: 404 });
+    }
 
     // Delete from cloudinary
-    await cloudinary.uploader.destroy(photo.cloudinaryPublicId);
+    let cloudinaryErrors = 0;
+    for (const photo of photos) {
+      try {
+        await cloudinary.uploader.destroy(photo.cloudinaryPublicId);
+      } catch (e) {
+        console.error(`Failed to delete from Cloudinary: ${photo.cloudinaryPublicId}`, e);
+        cloudinaryErrors++;
+      }
+    }
 
     // Delete from DB
-    await db.delete(matchPhotos).where(eq(matchPhotos.id, id));
+    await db.delete(matchPhotos).where(inArray(matchPhotos.id, idsToDelete));
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ 
+      success: true, 
+      deleted: photos.length,
+      cloudinaryErrors 
+    });
   } catch (error) {
     console.error("Gallery Delete Error:", error);
     return NextResponse.json({ error: "Delete failed" }, { status: 500 });
