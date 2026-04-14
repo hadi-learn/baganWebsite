@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback } from "react";
 import { getCategoryStyles } from "@/lib/colors";
 import { getUnifiedMatchCode } from "@/lib/playerUtils";
 import { parsePlayerInfo } from "@/lib/playerUtils";
+import { cldThumb, cldMedium, cldLarge } from "@/lib/cloudinaryUrl";
 
 interface Match {
   id: number;
@@ -879,7 +880,7 @@ export default function HomePage() {
                           }}
                         >
                           <img 
-                            src={photo.url} 
+                            src={cldMedium(photo.url)} 
                             alt={`Photo ${idx + 1}`} 
                             style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                             loading="lazy"
@@ -1070,7 +1071,7 @@ export default function HomePage() {
             </div>
             
             <div className="lightbox-main-photo">
-              <img src={galleryPhotos[activePhotoIndex].url} alt={`Photo ${activePhotoIndex + 1}`} />
+              <img src={cldLarge(galleryPhotos[activePhotoIndex].url)} alt={`Photo ${activePhotoIndex + 1}`} />
               
               <a 
                 href={galleryPhotos[activePhotoIndex]?.url?.replace('/upload/', '/upload/fl_attachment/')} 
@@ -1090,7 +1091,7 @@ export default function HomePage() {
                   className={`lightbox-thumbnail ${idx === activePhotoIndex ? "active" : ""}`}
                   onClick={() => setActivePhotoIndex(idx)}
                 >
-                  <img src={photo.url} alt={`Thumb ${idx + 1}`} />
+                  <img src={cldThumb(photo.url)} alt={`Thumb ${idx + 1}`} />
                 </div>
               ))}
             </div>

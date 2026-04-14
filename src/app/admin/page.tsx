@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getCategoryStyles } from "@/lib/colors";
 import { getUnifiedMatchCode, normalizeCategoryName, normalizeMatchCode } from "@/lib/playerUtils";
+import { cldThumb, cldSmall } from "@/lib/cloudinaryUrl";
 
 interface Category {
   id: number;
@@ -1329,7 +1330,7 @@ export default function AdminPage() {
                               {(items as any[]).map(item => (
                                 <div key={item.matchCode} className="admin-card clickable" onClick={() => loadGallery(item.matchCode)} style={{ display: 'flex', gap: '1rem', alignItems: 'center', padding: '1rem', cursor: 'pointer', margin: 0 }}>
                                   <div style={{ width: '80px', height: '60px', borderRadius: '6px', overflow: 'hidden', flexShrink: 0, background: '#000', border: '1px solid var(--border-light)' }}>
-                                    {item.thumbnail ? <img src={item.thumbnail} alt="thumb" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
+                                    {item.thumbnail ? <img src={cldThumb(item.thumbnail)} alt="thumb" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
                                   </div>
                                   <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--accent)' }}>#{item.matchCode}</div>
@@ -1520,7 +1521,7 @@ export default function AdminPage() {
                               {isSelected && "✓"}
                             </div>
 
-                            <img src={photo.url} alt="Gallery" style={{ width: "100%", height: "120px", objectFit: "cover", display: "block" }} />
+                            <img src={cldSmall(photo.url)} alt="Gallery" style={{ width: "100%", height: "120px", objectFit: "cover", display: "block" }} />
 
                             {/* File size label */}
                             <div style={{
@@ -1737,7 +1738,7 @@ export default function AdminPage() {
                             {isSelected && "✓"}
                           </div>
 
-                          <img src={photo.url} alt="Gallery" style={{ width: "100%", height: "140px", objectFit: "cover", display: "block" }} />
+                          <img src={cldSmall(photo.url)} alt="Gallery" style={{ width: "100%", height: "140px", objectFit: "cover", display: "block" }} />
 
                           {/* File size label */}
                           <div style={{
