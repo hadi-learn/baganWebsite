@@ -250,7 +250,8 @@ export default function HomePage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [matchesLoading, setMatchesLoading] = useState(false);
-  const [globalSettings, setGlobalSettings] = useState({ name: "Bagan Pertandingan", description: "Turnamen Badminton", footerText: "© 2026 Bagan Pertandingan. All rights reserved.", aiChatEnabled: true });
+  const [globalSettings, setGlobalSettings] = useState({ name: "Bagan Pertandingan", description: "Turnamen Badminton", footerText: "© 2026 Bagan Pertandingan. All rights reserved.", aiChatEnabled: false });
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   // Schedule state
   const [scheduleData, setScheduleData] = useState<ScheduleMatch[]>([]);
@@ -380,6 +381,7 @@ export default function HomePage() {
              footerText: data.footerText || "© 2026 Bagan Pertandingan. All rights reserved.",
              aiChatEnabled: data.aiChatEnabled !== undefined ? data.aiChatEnabled : true
            });
+           setSettingsLoaded(true);
         }
       });
   }, []);
@@ -1134,7 +1136,7 @@ export default function HomePage() {
       </div>
 
       {/* ===== BOTPRESS AI CHATBOX ===== */}
-      {globalSettings.aiChatEnabled && (
+      {settingsLoaded && globalSettings.aiChatEnabled && (
         <>
           <Script 
             src="https://cdn.botpress.cloud/webchat/v3.6/inject.js"
