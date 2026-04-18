@@ -33,12 +33,29 @@ export default function RootLayout({
         {/* Botpress Webchat Scripts */}
         <Script 
           src="https://cdn.botpress.cloud/webchat/v2.2/shareable.js" 
-          strategy="lazyOnload"
+          strategy="afterInteractive"
         />
-        <Script 
-          src="https://files.bpcontent.cloud/2026/04/18/01/20260418012947-O3MRE0GH.js" 
-          strategy="lazyOnload"
-        />
+        <Script id="botpress-init" strategy="afterInteractive">
+          {`
+            window.botpressWebChat.init({
+              "botId": "b80a5ea5-563e-40cf-a5fd-d1ec988a529c",
+              "clientId": "4c9d9b67-34c2-4f59-8ed6-bfed7d422fcb",
+              "hostUrl": "https://cdn.botpress.cloud/webchat/v2.2",
+              "messagingUrl": "https://messaging.botpress.cloud",
+              "botName": "Badminton Support Assistant",
+              "containerWidth": "100%25",
+              "layoutWidth": "100%25",
+              "hideWidget": false,
+              "showCloseButton": true,
+              "disableAnimations": false,
+              "closeOnEscape": true,
+              "showConversationsButton": true,
+              "clearConversationOnThemeChange": false,
+              "enableTranscriptDownload": false,
+              "themeColor": "#2b7b5e"
+            });
+          `}
+        </Script>
       </body>
     </html>
   );
