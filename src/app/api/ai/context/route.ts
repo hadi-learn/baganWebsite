@@ -6,8 +6,10 @@ import {
   matches,
   scheduleMatches,
   scheduleSettings,
+  matchPhotos,
 } from "@/db/schema";
 import { asc, eq } from "drizzle-orm";
+import { normalizeCategoryName, normalizeMatchCode, getUnifiedMatchCode } from "@/lib/playerUtils";
 
 /**
  * AI Context Endpoint for Botpress
@@ -70,6 +72,23 @@ export async function GET(request: Request) {
         : [];
     } catch { /* ignore */ }
 
+    // 6. All Photos
+    const allPhotos = await db.select().from(matchPhotos).orderBy(asc(matchPhotos.sortOrder));
+    
+    // Process photos for easy lookup
+    const matchPhotosMap = new Map<string, any[]>();
+    const generalPhotosMap = new Map<string, any[]>();
+    
+    allPhotos.forEach(p => {
+      if (p.type === "match") {
+        if (!matchPhotosMap.has(p.matchCode)) matchPhotosMap.set(p.matchCode, []);
+        matchPhotosMap.get(p.matchCode)!.push(p.url);
+      } else {
+        if (!generalPhotosMap.has(p.matchCode)) generalPhotosMap.set(p.matchCode, []);
+        generalPhotosMap.get(p.matchCode)!.push(p.url);
+      }
+    });
+
     // --- Build structured response ---
 
     // Round label mapping
@@ -122,6 +141,16 @@ export async function GET(request: Request) {
 
         if (m.schedule) {
           matchEntry.jadwal = m.schedule;
+        }
+
+        // Add photo info - Use unified match code for lookup
+        const unifiedCode = getUnifiedMatchCode(cat.name, m.matchCode);
+        const photos = matchPhotosMap.get(unifiedCode) || [];
+        if (photos.length > 0) {
+          matchEntry.galeriFoto = {
+            jumlah: photos.length,
+            daftarLink: photos.slice(0, 5) // AI only needs a few links to be helpful
+          };
         }
 
         rounds[roundKey].push(matchEntry);
@@ -189,6 +218,16 @@ export async function GET(request: Request) {
         matchEntry.pemenang = s.winner === 1 ? matchEntry.tim1 : matchEntry.tim2;
       }
 
+      // Add photo info - Use unified match code for lookup
+      const unifiedCode = getUnifiedMatchCode(s.category, s.gameNumber);
+      const photos = matchPhotosMap.get(unifiedCode) || [];
+      if (photos.length > 0) {
+        matchEntry.galeriFoto = {
+          jumlah: photos.length,
+          daftarLink: photos.slice(0, 5)
+        };
+      }
+
       scheduleDays.get(s.dayDate)!.push(matchEntry);
     });
 
@@ -197,6 +236,10 @@ export async function GET(request: Request) {
       tanggal: dayDate,
       jumlahPertandingan: matches.length,
       pertandinganSelesai: matches.filter((m) => m.status === "Selesai").length,
+      galeriSuasana: {
+        jumlahFoto: generalPhotosMap.get(dayDate)?.length || 0,
+        daftarLink: generalPhotosMap.get(dayDate)?.slice(0, 10) || []
+      },
       daftarPertandingan: matches,
     }));
 
