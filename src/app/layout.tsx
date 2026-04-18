@@ -42,8 +42,13 @@ export default function RootLayout({
                 if (window.botpress) {
                   clearInterval(checkBotpress);
                   window.botpress.init({
-                    "configUrl": "https://files.bpcontent.cloud/2026/04/18/01/20260418012947-O3MRE0GH.json",
-                    "hostUrl": "https://cdn.botpress.cloud/webchat/v3.6"
+                    "botId": "b80a5ea5-563e-40cf-a5fd-d1ec988a529c",
+                    "clientId": "4c9d9b67-34c2-4f59-8ed6-bfed7d422fcb",
+                    "configuration": {
+                      "botName": "Badminton Support Assistant",
+                      "color": "#2b7b5e",
+                      "themeMode": "light"
+                    }
                   });
                 }
               }, 100);
