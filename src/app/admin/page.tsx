@@ -91,7 +91,7 @@ export default function AdminPage() {
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
   // Global Settings State
-  const [globalSettings, setGlobalSettings] = useState({ name: "", description: "", footerText: "" });
+  const [globalSettings, setGlobalSettings] = useState({ name: "", description: "", footerText: "", aiChatEnabled: true });
   const [globalSettingsMsg, setGlobalSettingsMsg] = useState<string | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -165,7 +165,8 @@ export default function AdminPage() {
           setGlobalSettings({
             name: data.name || "",
             description: data.description || "",
-            footerText: data.footerText || ""
+            footerText: data.footerText || "",
+            aiChatEnabled: data.aiChatEnabled !== undefined ? data.aiChatEnabled : true
           });
         }
       });
@@ -1123,6 +1124,21 @@ export default function AdminPage() {
                   onChange={(e) => setGlobalSettings({...globalSettings, footerText: e.target.value})}
                   placeholder="cth: © 2026 Bagan Pertandingan. All rights reserved."
                 />
+              </div>
+
+              <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '1rem', padding: '1rem', background: 'var(--glass-bg)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ margin: 0, fontSize: '1.1rem', color: 'var(--accent)' }}>🤖 Botpress AI Chatbox</label>
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>Aktifkan atau nonaktifkan fitur AI Chat di halaman publik.</p>
+                </div>
+                <label className="switch">
+                  <input 
+                    type="checkbox" 
+                    checked={globalSettings.aiChatEnabled} 
+                    onChange={(e) => setGlobalSettings({...globalSettings, aiChatEnabled: e.target.checked})} 
+                  />
+                  <span className="slider round"></span>
+                </label>
               </div>
 
               <button className="save-btn lg" onClick={handleSaveSettings} disabled={savingSettings}>

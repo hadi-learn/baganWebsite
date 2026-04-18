@@ -13,7 +13,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { name, description, footerText } = await request.json();
+    const { name, description, footerText, aiChatEnabled } = await request.json();
 
     if (!name) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -27,7 +27,7 @@ export async function PUT(request: Request) {
     
     await db
       .update(tournaments)
-      .set({ name, description, footerText })
+      .set({ name, description, footerText, aiChatEnabled: aiChatEnabled !== undefined ? aiChatEnabled : true })
       .where(eq(tournaments.id, tournamentList[0].id));
 
     return NextResponse.json({ success: true });

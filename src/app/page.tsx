@@ -6,6 +6,7 @@ import { getCategoryStyles } from "@/lib/colors";
 import { getUnifiedMatchCode } from "@/lib/playerUtils";
 import { parsePlayerInfo } from "@/lib/playerUtils";
 import { cldThumb, cldMedium, cldLarge } from "@/lib/cloudinaryUrl";
+import Script from "next/script";
 
 interface Match {
   id: number;
@@ -249,7 +250,7 @@ export default function HomePage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
   const [matchesLoading, setMatchesLoading] = useState(false);
-  const [globalSettings, setGlobalSettings] = useState({ name: "Bagan Pertandingan", description: "Turnamen Badminton", footerText: "© 2026 Bagan Pertandingan. All rights reserved." });
+  const [globalSettings, setGlobalSettings] = useState({ name: "Bagan Pertandingan", description: "Turnamen Badminton", footerText: "© 2026 Bagan Pertandingan. All rights reserved.", aiChatEnabled: true });
 
   // Schedule state
   const [scheduleData, setScheduleData] = useState<ScheduleMatch[]>([]);
@@ -376,7 +377,8 @@ export default function HomePage() {
            setGlobalSettings({
              name: data.name || "Bagan Pertandingan",
              description: data.description || "Turnamen Badminton",
-             footerText: data.footerText || "© 2026 Bagan Pertandingan. All rights reserved."
+             footerText: data.footerText || "© 2026 Bagan Pertandingan. All rights reserved.",
+             aiChatEnabled: data.aiChatEnabled !== undefined ? data.aiChatEnabled : true
            });
         }
       });
@@ -1130,6 +1132,36 @@ export default function HomePage() {
       >
         <span className="scroll-to-top-icon">↑</span>
       </div>
+
+      {/* ===== BOTPRESS AI CHATBOX ===== */}
+      {globalSettings.aiChatEnabled && (
+        <>
+          <Script 
+            src="https://cdn.botpress.cloud/webchat/v3.6/inject.js"
+            strategy="afterInteractive"
+          />
+          <Script id="botpress-init" strategy="afterInteractive">
+            {`
+              (function() {
+                var checkBotpress = setInterval(function() {
+                  if (window.botpress) {
+                    clearInterval(checkBotpress);
+                    window.botpress.init({
+                      "botId": "b80a5ea5-563e-40cf-a5fd-d1ec988a529c",
+                      "clientId": "4c9d9b67-34c2-4f59-8ed6-bfed7d422fcb",
+                      "configuration": {
+                        "botName": "Badminton Support Assistant",
+                        "color": "#2b7b5e",
+                        "themeMode": "light"
+                      }
+                    });
+                  }
+                }, 100);
+              })();
+            `}
+          </Script>
+        </>
+      )}
     </div>
   );
 }

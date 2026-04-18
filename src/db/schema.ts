@@ -13,6 +13,7 @@ export const tournaments = mysqlTable("tournaments", {
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   footerText: varchar("footer_text", { length: 255 }), // e.g., "© 2026 Bagan Pertandingan"
+  aiChatEnabled: boolean("ai_chat_enabled").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
