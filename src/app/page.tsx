@@ -281,6 +281,29 @@ export default function HomePage() {
   const [genGalleryPhotos, setGenGalleryPhotos] = useState<any[]>([]);
   const [genGalleryLoading, setGenGalleryLoading] = useState(false);
 
+  // Scroll to Top state
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 300) {
+        setShowScrollTop(true);
+      } else {
+        setShowScrollTop(false);
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth"
+    });
+  };
+
   const handleCardClick = (rawCode: string, catName: string, info: { match: Match | ScheduleMatch; categoryDisplayName: string }) => {
     const codeNumber = rawCode.replace(/\D/g, "");
     if (!codeNumber) return;
@@ -1098,6 +1121,15 @@ export default function HomePage() {
           </div>
         </div>
       )}
+
+      {/* ===== SCROLL TO TOP ===== */}
+      <div 
+        className={`scroll-to-top ${showScrollTop ? "visible" : ""}`} 
+        onClick={scrollToTop}
+        title="Kembali ke Atas"
+      >
+        <span className="scroll-to-top-icon">↑</span>
+      </div>
     </div>
   );
 }
