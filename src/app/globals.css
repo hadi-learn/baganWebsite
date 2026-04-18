@@ -2147,7 +2147,7 @@ body {
 .scroll-to-top {
   position: fixed;
   bottom: 2rem;
-  right: 2rem;
+  left: 2rem;
   width: 50px;
   height: 50px;
   background: var(--glass-bg);
@@ -2188,7 +2188,7 @@ body {
 @media (max-width: 768px) {
   .scroll-to-top {
     bottom: 1.5rem;
-    right: 1.5rem;
+    left: 1.5rem;
     width: 45px;
     height: 45px;
   }
