@@ -1128,16 +1128,16 @@ export default function AdminPage() {
 
               <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '1rem', padding: '1rem', background: 'var(--glass-bg)', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ margin: 0, fontSize: '1.1rem', color: 'var(--accent)' }}>🤖 Botpress AI Chatbox</label>
-                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>Aktifkan atau nonaktifkan fitur AI Chat di halaman publik.</p>
+                  <label style={{ margin: 0, fontSize: '1.05rem', color: 'var(--text-primary)', fontWeight: 600 }}>🤖 Botpress AI Chatbox</label>
+                  <p style={{ margin: '0.3rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Aktifkan fitur widget AI Chatbot untuk pengunjung di halaman publik.</p>
                 </div>
-                <label className="switch">
+                <label className="premium-switch">
                   <input 
                     type="checkbox" 
                     checked={globalSettings.aiChatEnabled} 
                     onChange={(e) => setGlobalSettings({...globalSettings, aiChatEnabled: e.target.checked})} 
                   />
-                  <span className="slider round"></span>
+                  <span className="premium-slider"></span>
                 </label>
               </div>
 
